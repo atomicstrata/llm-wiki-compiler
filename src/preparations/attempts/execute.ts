@@ -24,7 +24,7 @@
  * {@link attemptExecutionStepsOver} composes them from each store's own body.
  */
 
-import { withOrdinaryMutationLock as underLock } from "../../operation-bundles/with-mutation-lock.js";
+import { withAttemptMutationLock as underLock } from "../../operation-bundles/with-mutation-lock.js";
 import { LockBusyError } from "../../utils/lock.js";
 import { parseSha256Digest } from "../../capability-providers/ids.js";
 import { captureOwnDataRecord } from "../../utils/runtime-capture.js";
@@ -33,12 +33,11 @@ import {
   preparationCancellationRequested, preparationCancellationRequestedFrom,
   type PreparationCancelLeaves, type PreparationCancellationProbe,
 } from "../cancellation.js";
-import {
-  readPreparationManifest, readPreparationManifestFrom, type PreparationManifestLeafReads, type PreparationManifestRead,
-} from "../manifest-store.js";
+import { readPreparationManifestFrom, type PreparationManifestLeafReads, type PreparationManifestRead } from "../manifest-store.js";
+import { preparationPassReads } from "../pass-reads.js";
 import { preparationRunPredecessor } from "../run-integrity.js";
 import {
-  appendPreparationTransitionWith, appendProjectedTransitionLocked, readPreparationRun, readPreparationRunFrom,
+  appendPreparationTransitionWith, preparationRunWriteStepsOn, readPreparationRun, readPreparationRunFrom,
   type PreparationRunLeafReads, type PreparationRunRead, type PreparationRunWriteSteps,
 } from "../run-store.js";
 import { settleAttemptCancellationLocked, settleAttemptCancellationWith, type CancelSettlementSources } from "./cancel-settlement.js";
@@ -95,14 +94,21 @@ export interface AttemptExecutionSteps {
   settleCancellation(delivered: boolean): Promise<void>;
 }
 
-/** LOCAL DISK. The incumbent lock, readers and writers for the captured request's root, each called when asked. */
 function diskAttemptExecutionSteps(request: AttemptExecutionRequestV1): AttemptExecutionSteps {
   const root = request.root;
+  let pass = preparationPassReads(root);
+  const renew = () => { pass = preparationPassReads(root); };
   return {
-    lock: (work) => underLock(root, work),
-    readRun: (binding) => readPreparationRun(root, binding),
-    readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
-    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project),
+    lock: (work) => underLock(root, () => { renew(); return work(); }),
+    readRun: (binding) => pass.readRun(binding),
+    readManifest: (workspaceId, preparationId) => pass.readManifest(workspaceId, preparationId),
+    appendProjected: async (binding, expected, input, project) => {
+      try {
+        return await appendPreparationTransitionWith(preparationRunWriteStepsOn(root, pass), binding, expected, input, project);
+      } finally {
+        renew();
+      }
+    },
     publishCustody: (location, pending, cap) => publishCustodyLocked(root, location, pending, cap),
     cancellationRequested: (workspaceId, runId) => preparationCancellationRequested(root, workspaceId, runId),
     settleCancellation: (delivered) => settleAttemptCancellationLocked(request, delivered),

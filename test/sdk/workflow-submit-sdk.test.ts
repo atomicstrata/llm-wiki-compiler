@@ -10,7 +10,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { useWorkflowRoot, startBuildRun } from "../fixtures/workflow-profile.js";
+import { useWorkflowRoot } from "../fixtures/workflow-profile.js";
+import { startBuildRun } from "../fixtures/workflow-run-helpers.js";
 import { TRUSTED_WRITE_ENV_VAR } from "../../src/workflows/trusted-write.js";
 
 const ctx = useWorkflowRoot("sdk-workflow-submit-", [

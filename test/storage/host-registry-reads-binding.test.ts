@@ -32,7 +32,7 @@ import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import { deriveAttemptId, derivePhaseInstanceId, singleExpansionIdentity } from "../../src/preparations/ids.js";
 import * as runStore from "../../src/preparations/run-store.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";
-import { compileChainedAction, compileReconcilePaperAction } from "../operations-packs/runtime-fixture.js";
+import { compileChainedAction, compileReconcilePaperAction } from "../operations-packs/compiled-actions-fixture.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

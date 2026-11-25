@@ -111,7 +111,7 @@ describe("the composition and the root forms", () => {
   it("B2 the stage root form reaches the incumbent preflight, lock and durable publication with exact arguments, in order", async () => {
     const { order, note } = orderedStubs();
     const pre = vi.spyOn(readiness, "preparationPreflightRefusal").mockImplementation(note("preflight", null));
-    const acquire = vi.spyOn(lockGate, "acquireMutationLock").mockImplementation(note("acquire", true));
+    const acquire = vi.spyOn(lockGate, "acquireMutationLockHandingOver").mockImplementation(note("acquire", { acquired: true, preparationPass: null }));
     const locked = vi.spyOn(stage, "stagePreparationLocked").mockImplementation(note("publish", STAGED));
     const release = vi.spyOn(lock, "releaseLock").mockImplementation(note("release", undefined));
     const { request } = harness();
@@ -124,7 +124,7 @@ describe("the composition and the root forms", () => {
   it("B3 the preview root form reaches the incumbent preflight and dry-run publication, and never the lock", async () => {
     const pre = vi.spyOn(readiness, "preparationPreflightRefusal").mockResolvedValue(null);
     const dry = vi.spyOn(preview, "previewPreparation").mockResolvedValue(STAGED);
-    const acquire = vi.spyOn(lockGate, "acquireMutationLock");
+    const acquire = vi.spyOn(lockGate, "acquireMutationLockHandingOver");
     const { request } = harness();
     expect((await previewPreparationOperation("/project", "cli", request)).status).toBe("previewed");
     expect([pre.mock.calls, dry.mock.calls[0]?.[0], acquire.mock.calls]).toEqual([[["/project"]], "/project", []]);

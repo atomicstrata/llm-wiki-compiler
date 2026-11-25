@@ -9,7 +9,8 @@
  * explicitly, which is exactly the decision that must not be made by omission.
  */
 
-import { lstat, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
+import { lstat } from "./fs-metadata.js";
 import type { Dirent, Stats } from "node:fs";
 
 /**

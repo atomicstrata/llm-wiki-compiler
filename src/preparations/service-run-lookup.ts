@@ -35,10 +35,12 @@
 
 import { scanPreparationInventory } from "./capacity.js";
 import type { PreparationInventory } from "./capacity.js";
+import type { CommandPreparationPass } from "./recovery.js";
 import { readPreparationEvidenceBytes } from "./evidence-store.js";
 import type { PreparationEvidenceBytesRead, PreparationEvidenceLocation } from "./evidence-store.js";
 import { readPreparationKeyEpoch } from "./key-epoch.js";
 import type { PreparationManifestV1 } from "./manifest-parse.js";
+import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
 import { bindingFor } from "./references.js";
 import { readPreparationRun } from "./run-store.js";
 import type { PreparationRunRead } from "./run-store.js";
@@ -114,6 +116,19 @@ export function diskPreparationRunLookupReads(root: string): PreparationRunLooku
     scanInventory: () => scanPreparationInventory(root),
     readKeyEpoch: () => readPreparationKeyEpoch(root),
     readRun: (binding) => readPreparationRun(root, binding),
+    readEvidenceBytes: (location, digest, maxBytes) =>
+      readPreparationEvidenceBytes(root, location, digest, maxBytes),
+  };
+}
+
+function lookupPassReads(
+  root: string, pass: PreparationPassReads,
+  scanInventory: () => Promise<PreparationInventory> = () => scanPreparationInventory(root, {}, pass),
+): PreparationRunLookupReads {
+  return {
+    scanInventory,
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
     readEvidenceBytes: (location, digest, maxBytes) =>
       readPreparationEvidenceBytes(root, location, digest, maxBytes),
   };
@@ -214,7 +229,7 @@ async function readBoundRun(
 export async function readPreparationRunForManifest(
   root: string, manifest: PreparationManifestV1,
 ): Promise<PreparationRunLookupV1> {
-  return readPreparationRunForManifestFrom(diskPreparationRunLookupReads(root), manifest);
+  return readPreparationRunForManifestFrom(lookupPassReads(root, preparationPassReads(root)), manifest);
 }
 
 /** {@link readPreparationRunForManifest} over the lookup's reads: the one body. */
@@ -246,9 +261,16 @@ export async function readPreparationRunForManifestFrom(
  * @returns The bound run, or the honest reason it was not reached.
  */
 export async function resolvePreparationRun(
-  root: string, runId: string,
+  root: string, runId: string, pass: PreparationPassReads = preparationPassReads(root),
 ): Promise<PreparationRunLookupV1> {
-  return resolvePreparationRunFrom(diskPreparationRunLookupReads(root), runId);
+  return resolvePreparationRunFrom(lookupPassReads(root, pass), runId);
+}
+
+/** {@link resolvePreparationRun} on the pass of a command holding the lock: the command's scan, which is the gate's own when the gate handed one over (`commandPreparationPass`), then the run read under the same reads. */
+export async function resolvePreparationRunOnPass(
+  root: string, runId: string, command: CommandPreparationPass,
+): Promise<PreparationRunLookupV1> {
+  return resolvePreparationRunFrom(lookupPassReads(root, command.reads, () => command.scanInventory()), runId);
 }
 
 /** {@link resolvePreparationRun} over the lookup's reads: one scan, then the run read. */

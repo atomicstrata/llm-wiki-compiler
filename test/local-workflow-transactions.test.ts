@@ -12,7 +12,7 @@ import { createLocalWorkflowTransactions, createLocalWorkflowTransactionScope } 
 import {
   assertLocalWorkflowCoreInstance, LocalWorkflowCoreInstanceError, LOCAL_WORKFLOW_CORE_INSTANCE,
   LocalWorkflowTransactionError, type LocalWorkflowTransaction,
-} from "../src/local-workflow-host/shared-contracts.js";
+} from "../src/local-workflow-host/contracts.js";
 
 const ctx = useConfinementRoots("local-workflow-host");
 

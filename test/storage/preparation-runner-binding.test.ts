@@ -89,12 +89,12 @@ const MANIFEST_REF = { kind: MATERIALIZATION_MANIFEST_KIND, digest: "sha256:ab" 
 describe("the runner's body over its steps", () => {
   it("N1 drives each ready phase in order until an undecided gate, then suspends there", async () => {
     expect(await runOver()).toEqual([{ status: "suspended-at-gate", runId: "prr_1" },
-      ["run", "manifest", "manifest", "run", "run", "attempt collect", "run", "map expand", "run", "run", "block review"]]);
+      ["run", "manifest", "attempt collect", "run", "map expand", "run", "block review"]]);
   });
 
   it("N2 retries one busy attempt, and reports refused-busy after the retry is spent", async () => {
     expect((await runOver({ busy: 1 }))[1].filter((call) => call.startsWith("attempt"))).toEqual(["attempt collect", "attempt collect"]);
-    expect(await runOver({ busy: 2 })).toEqual([{ status: "refused-busy", runId: "prr_1" }, ["run", "manifest", "manifest", "run", "run", "attempt collect", "attempt collect"]]);
+    expect(await runOver({ busy: 2 })).toEqual([{ status: "refused-busy", runId: "prr_1" }, ["run", "manifest", "attempt collect", "attempt collect"]]);
   });
 
   it("N3 classifies terminal states with one read, and refuses missing limits, a missing materializer or a mismatched contract before driving", async () => {
@@ -108,7 +108,7 @@ describe("the runner's body over its steps", () => {
   it("N4 reconstructs a handoff-ready run from its one manifest and hands off; a handoff error is a refusal", async () => {
     const ready = { state: "handoff-ready", evidenceRefs: [MANIFEST_REF] };
     expect(await runOver(ready)).toEqual([{ status: "handed-off", runId: "prr_1", bundleManifestDigest: "bundle" },
-      ["run", "manifest", "run", "manifest-back sha256:ab", "payloads-back", "handoff"]]);
+      ["run", "manifest", "manifest-back sha256:ab", "payloads-back", "handoff"]]);
     const fault = new handoff.HandoffError("x" as never, "stale");
     expect((await runOver({ ...ready, handoffFault: fault }))[0]).toEqual({ status: "refused", runId: "prr_1", reason: `handoff: ${fault.message}` });
     expect((await runOver({ state: "handoff-ready" }))[0]).toEqual({ status: "refused", runId: "prr_1", reason: "materialization manifests: none" });

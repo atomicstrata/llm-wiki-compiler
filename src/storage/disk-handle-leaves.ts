@@ -4,8 +4,11 @@
  * across more than one step and NEVER HAND IT OUT. Each function opens, does
  * its several handle calls, closes, and returns a plain value. The legacy
  * profile loader and the product-package member check are the callers, and
- * these two bodies are what those modules did inline with a handle of their
- * own.
+ * these bodies are what those modules did inline with a handle of their own.
+ * The member check has a second form, {@link readConfinedLeafDigest}, that
+ * also returns the bytes it hashed, so a caller that needs a member's content
+ * does not open and hash the same leaf again: the SAME body, the same
+ * classification, with the streamed bytes kept.
  *
  * This is a LOCAL PHYSICAL IMPLEMENTATION BOUNDARY, like the other
  * `storage/disk-*` files: one implementation, nothing injected, no port. No
@@ -31,6 +34,9 @@
  *  - {@link checkConfinedLeafDigest} carries the existing confined open's
  *    guard and never rejects once that open has returned: every failure after
  *    a confirmed open is `"differs"`, and a failing `close` is ignored.
+ *    {@link readConfinedLeafDigest} is that one body with the bytes kept: its
+ *    classification is identical outcome for outcome, and its bytes are
+ *    returned ONLY with `matches`, so no unverified byte ever leaves.
  *
  * Nothing here is newly confined, atomic or durable; each keeps exactly the
  * behaviour of the caller it came from.
@@ -38,7 +44,7 @@
 
 import { constants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
-import { openConfinedLeaf, type ReadLeafOptions } from "../utils/confined-read.js";
+import { openConfinedLeaf, type ConfirmedLeafOpen, type ReadLeafOptions } from "../utils/confined-read.js";
 import { openFileNoFollow, readOpenedTextWithinCap } from "../utils/no-follow-open.js";
 import { streamConfinedDigest } from "../utils/stream-digest.js";
 
@@ -78,6 +84,13 @@ export async function readLeafTextNoFollowCapped(leaf: string, maxBytes: number)
 /** What one confined leaf is, against the bytes its caller expects. */
 export type ConfinedLeafDigestCheck = "absent" | "unavailable" | "matches" | "differs";
 
+/** {@link ConfinedLeafDigestCheck} with the verified bytes on `matches`, and only there. */
+export type ConfinedLeafDigestRead =
+  | { kind: Exclude<ConfinedLeafDigestCheck, "matches"> }
+  | { kind: "matches"; bytes: Buffer };
+
+interface ExpectedLeafBytes { sha256Hex: string; byteCount: number }
+
 /**
  * CARRIES THE CONFINED OPEN'S GUARD. `openConfinedLeaf(root, leaf,
  * expectedDir, opts)` exactly, with `opts` passed through unchanged (the
@@ -96,22 +109,62 @@ export type ConfinedLeafDigestCheck = "absent" | "unavailable" | "matches" | "di
  * path after a confirmed open, and a failing `close` is ignored.
  */
 export async function checkConfinedLeafDigest(
-  root: string, leaf: string, expectedDir: string,
-  expected: { sha256Hex: string; byteCount: number }, opts: ReadLeafOptions = {},
+  root: string, leaf: string, expectedDir: string, expected: ExpectedLeafBytes, opts: ReadLeafOptions = {},
 ): Promise<ConfinedLeafDigestCheck> {
+  return (await digestConfinedLeaf(root, leaf, expectedDir, expected, opts, false)).kind;
+}
+
+/** {@link checkConfinedLeafDigest} that KEEPS THE BYTES IT HASHED. */
+export async function readConfinedLeafDigest(
+  root: string, leaf: string, expectedDir: string, expected: ExpectedLeafBytes, opts: ReadLeafOptions = {},
+): Promise<ConfinedLeafDigestRead> {
+  const { kind, bytes } = await digestConfinedLeaf(root, leaf, expectedDir, expected, opts, true);
+  if (kind !== "matches") return { kind };
+  return bytes === null ? { kind: "differs" } : { kind, bytes };
+}
+
+type DigestOutcome = { kind: ConfinedLeafDigestCheck; bytes: Buffer | null };
+
+const DIFFERS: DigestOutcome = { kind: "differs", bytes: null };
+
+async function digestConfinedLeaf(
+  root: string, leaf: string, expectedDir: string, expected: ExpectedLeafBytes, opts: ReadLeafOptions, keepBytes: boolean,
+): Promise<DigestOutcome> {
   const opened = await openConfinedLeaf(root, leaf, expectedDir, opts);
-  if (opened.kind !== "confirmed") return opened.kind;
+  if (opened.kind !== "confirmed") return { kind: opened.kind, bytes: null };
   try {
-    if (opened.size !== expected.byteCount) return "differs";
-    const streamed = await streamConfinedDigest(opened, expected.byteCount);
-    if (streamed === null || streamed.total !== expected.byteCount) return "differs";
-    const after = await opened.handle.stat();
-    const stable = after.dev === opened.dev && after.ino === opened.ino
-      && after.nlink === opened.nlink && after.size === opened.size;
-    return stable && streamed.digest === expected.sha256Hex ? "matches" : "differs";
+    return await digestOpenedLeaf(opened, expected, keepBytes);
   } catch {
-    return "differs";
+    return DIFFERS;
   } finally {
     await opened.handle.close().catch(() => {});
   }
+}
+
+async function digestOpenedLeaf(opened: ConfirmedLeafOpen, expected: ExpectedLeafBytes, keepBytes: boolean): Promise<DigestOutcome> {
+  if (opened.size !== expected.byteCount) return DIFFERS;
+  const bytes = keepBytes ? Buffer.alloc(expected.byteCount) : null;
+  const streamed = await streamConfinedDigest(bytes === null ? opened : copyingSource(opened, bytes), expected.byteCount);
+  if (streamed === null || streamed.total !== expected.byteCount) return DIFFERS;
+  const matches = await isSameFile(opened) && streamed.digest === expected.sha256Hex;
+  return matches ? { kind: "matches", bytes } : DIFFERS;
+}
+
+async function isSameFile(opened: ConfirmedLeafOpen): Promise<boolean> {
+  const after = await opened.handle.stat();
+  return after.dev === opened.dev && after.ino === opened.ino
+    && after.nlink === opened.nlink && after.size === opened.size;
+}
+
+function copyingSource(opened: ConfirmedLeafOpen, into: Buffer): Parameters<typeof streamConfinedDigest>[0] {
+  return {
+    size: opened.size,
+    handle: {
+      read: async (target, offset, length, position) => {
+        const read = await opened.handle.read(target, offset, length, position);
+        target.copy(into, position, offset, offset + read.bytesRead);
+        return read;
+      },
+    },
+  };
 }
