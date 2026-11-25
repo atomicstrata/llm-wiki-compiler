@@ -11,6 +11,8 @@
  * source-document language, often English).
  */
 
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
+
 const LANG_ENV_VAR = "LLMWIKI_OUTPUT_LANG";
 
 /**
@@ -18,6 +20,8 @@ const LANG_ENV_VAR = "LLMWIKI_OUTPUT_LANG";
  * not opted into a specific target language.
  */
 export function getOutputLanguage(): string | null {
+  const scope = compilerModelScope();
+  if (scope) return scope.content.outputLanguage ?? null;
   const raw = process.env[LANG_ENV_VAR];
   if (!raw) return null;
   const trimmed = raw.trim();

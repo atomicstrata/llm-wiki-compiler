@@ -6,6 +6,22 @@ description: "Use createWiki() to drive llmwiki in-process from TypeScript or Ja
 
 The llmwiki SDK lets you drive the entire wiki pipeline from inside your own TypeScript or JavaScript application. Instead of spawning a child process and scraping CLI output, you import `createWiki` directly from the package and call methods that return typed results. Every method runs silently - no console output, no global state - and concurrent calls are fully isolated via `AsyncLocalStorage`.
 
+### Run with host-supplied models
+
+Use the package-root `runCompilerOperation` when an embedding application owns
+model routing. Each call supplies completion and embedding callbacks with
+explicit model identities. The callbacks receive the compiler's purpose for
+each request. The embedding fingerprint must identify the vector space and
+stay the same across compatible compiles and queries. An optional extraction
+identity records a separately routed extraction model in reuse metadata.
+
+A compile operates on a disposable working copy and requires complete
+embedding coverage to succeed. A query operates on an immutable copy and
+requires SHA-256 hashes for `wiki/index.md` and the authoritative embedding
+file. It verifies the hashes before model calls and makes no project writes.
+Review and the segmented `local-indexed` layout are outside this operation
+surface. The host owns authorization, callback cancellation and any deadlines.
+
 Use the SDK when you are embedding llmwiki in your own tooling: a build script, a CI harness, a REST API, a test suite, or any context where you want structured results and clean composability. Use the CLI when you are working interactively from the terminal. Use the MCP server when you want AI agents to drive the pipeline - see [MCP Integration](/guides/mcp-agent-integration).
 
 ## Installation

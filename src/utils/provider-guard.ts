@@ -30,6 +30,7 @@ import {
 } from "./embedding-provider.js";
 import { embeddingsDisabled } from "./embeddings-config.js";
 import { resolveConverseSettings } from "../providers/converse.js";
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
 
 /** Thrown when the active provider has no usable credentials. */
 export class ProviderUnavailableError extends Error {
@@ -116,6 +117,8 @@ const EMBEDDING_INCAPABLE_CHAT_PROVIDERS: readonly string[] = ["codex-agent", "c
 
 /** Validate the provider capabilities required by one entry point. */
 function ensureRequiredProvidersAvailable(requireEmbeddings: boolean): void {
+  const scope = compilerModelScope();
+  if (scope) return scope.refuse(new CompilerOperationError("operation_active"));
   if (requireEmbeddings) ensureEmbeddingProviderAvailable();
   const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
 

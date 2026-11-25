@@ -9,6 +9,7 @@
  */
 
 import { ENV_EMBEDDINGS } from "./constants.js";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 
 /** Case-insensitive values that disable embedding production. */
 const EMBEDDINGS_DISABLED_VALUES: ReadonlySet<string> = new Set([
@@ -20,6 +21,7 @@ const EMBEDDINGS_DISABLED_VALUES: ReadonlySet<string> = new Set([
 
 /** Return whether embedding production is explicitly disabled. */
 export function embeddingsDisabled(): boolean {
+  if (compilerModelScope()) return false;
   const value = process.env[ENV_EMBEDDINGS];
   return value !== undefined && EMBEDDINGS_DISABLED_VALUES.has(value.trim().toLowerCase());
 }

@@ -7,3 +7,6 @@ export { createWikiCoreAtRoot } from "./core.js";
 export { withQuiet } from "../utils/output.js";
 export type * from "./core-types.js";
 export { initProjectAtRoot } from "./scale-facade.js";
+export { runCompilerOperation } from "./compiler-operation.js";
+export { CompilerOperationError } from "./compiler-model-scope.js";
+export type * from "./compiler-operation-types.js";

@@ -18,6 +18,8 @@
  * byte-for-byte.
  */
 
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
+
 const SOURCES_SECTION_ENV_VAR = "LLMWIKI_SOURCES_SECTION";
 
 /**
@@ -29,6 +31,8 @@ const DISABLED_VALUES: ReadonlySet<string> = new Set(["0", "false", "off", "no"]
 
 /** True when generated pages should still include a `## Sources` section. */
 export function sourcesSectionEnabled(): boolean {
+  const scope = compilerModelScope();
+  if (scope) return scope.content.sourcesSection ?? true;
   const raw = process.env[SOURCES_SECTION_ENV_VAR];
   if (raw === undefined) return true;
   return !DISABLED_VALUES.has(raw.trim().toLowerCase());

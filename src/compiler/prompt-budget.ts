@@ -14,6 +14,7 @@
  */
 
 import * as output from "../utils/output.js";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 import {
   DEFAULT_PROMPT_BUDGET_CHARS,
   PROMPT_BUDGET_ENV_VAR,
@@ -38,6 +39,8 @@ export interface SourceSlice {
  * to nothing.
  */
 export function resolvePromptBudgetChars(): number {
+  const scope = compilerModelScope();
+  if (scope) return scope.content.promptBudgetChars ?? DEFAULT_PROMPT_BUDGET_CHARS;
   const raw = process.env[PROMPT_BUDGET_ENV_VAR];
   if (!raw) return DEFAULT_PROMPT_BUDGET_CHARS;
   const parsed = Number.parseInt(raw, 10);

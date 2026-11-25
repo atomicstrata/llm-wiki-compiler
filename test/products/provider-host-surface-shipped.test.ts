@@ -46,6 +46,9 @@ import { describe, expect, it } from "bun:test";
  */
 const PUBLIC_RUNTIME_EXPORTS: Readonly<Record<string, string>> = {
   ArtifactVerifyUnavailableError: "function",
+  // The host execution API exposes the runner and its stable refusal type.
+  CompilerOperationError: "function",
+  runCompilerOperation: "function",
   // D-ENSURE-CODE (P6.3d): a companion publishes an experiment program with the SAME
   // create-only, durable, confined write the platform uses — the primitive and its two
   // typed refusals are public so the companion never hand-rolls a weaker one.

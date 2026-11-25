@@ -34,6 +34,11 @@ export {
 } from "@atomicstrata/llmwiki-core";
 
 export { createWiki } from "./sdk/wiki.js";
+export { CompilerOperationError, runCompilerOperation } from "@atomicstrata/llmwiki-core/compiler-sdk";
+export type {
+  CompilerChatCall, CompilerChatPurpose, CompilerEmbeddingCall, CompilerModelIdentity,
+  CompilerOperationContent, CompilerOperationModels, CompilerOperationRequest, CompilerQueryGeneration,
+} from "@atomicstrata/llmwiki-core/compiler-sdk";
 export { startViewer, type StartViewerOptions } from "@atomicstrata/llmwiki-core";
 export type {
   ViewerDeps, LiveStageProjectionProvider, LiveStageProjectionResult,

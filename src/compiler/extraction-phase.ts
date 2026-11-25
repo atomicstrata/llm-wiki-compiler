@@ -156,6 +156,7 @@ async function extractConcepts(
 ): Promise<ExtractedConcept[] | undefined> {
   const system = buildExtractionPrompt(sourceContent, existingIndex);
   const rawOutput = await callClaude({
+    purpose: "compile.extract-concepts",
     system,
     messages: [{ role: "user", content: "Extract the key concepts from this source." }],
     tools: [CONCEPT_EXTRACTION_TOOL],
