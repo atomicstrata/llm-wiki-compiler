@@ -10,7 +10,7 @@
 
 import { TextDecoder } from "node:util";
 import { isSafeFilenameComponent } from "../profile/identity.js";
-import { canonicalBytes, canonicalDigest } from "../profile/templates/signing/canonical.js";
+import { canonicalBytes, canonicalBytesDigest } from "../profile/templates/signing/canonical.js";
 import { parseBoundedUniqueJson } from "../profile/templates/signing/json.js";
 import {
   MAX_CATALOG_FILE_BYTES,
@@ -64,10 +64,13 @@ export class CatalogConcurrentChangeError extends Error {
 }
 
 /** Rebuild arbitrary bounded JSON data through the canonical parser. */
-function rebuildPayload(value: unknown): OperationDataValue {
+function rebuildPayload(value: unknown): { payload: OperationDataValue; payloadDigest: OperationDigest } {
   const bytes = canonicalBytes(value);
   if (bytes.byteLength > MAX_CATALOG_RECORD_BYTES) throw new Error("catalog payload exceeds its record cap");
-  return parseBoundedUniqueJson(bytes.toString("utf8"), MAX_CATALOG_RECORD_BYTES) as OperationDataValue;
+  return {
+    payload: parseBoundedUniqueJson(bytes.toString("utf8"), MAX_CATALOG_RECORD_BYTES) as OperationDataValue,
+    payloadDigest: canonicalBytesDigest(bytes) as OperationDigest,
+  };
 }
 
 /** Require the store-local logical identity grammar. */
@@ -86,8 +89,9 @@ function parseCatalogRecord(value: unknown): CatalogRecord {
   ], ["supersedesRecordId"]);
   if (item.schemaVersion !== 1) throw new Error("catalog schemaVersion is unsupported");
   const mutationId = assertMutationId(item.mutationId);
-  const payload = rebuildPayload(item.payload), payloadDigest = digest(item.payloadDigest, "catalog payloadDigest");
-  if (payloadDigest !== canonicalDigest(payload)) throw new Error("catalog payload digest mismatch");
+  const { payload, payloadDigest: recomputed } = rebuildPayload(item.payload);
+  const payloadDigest = digest(item.payloadDigest, "catalog payloadDigest");
+  if (payloadDigest !== recomputed) throw new Error("catalog payload digest mismatch");
   const id = assertCatalogRecordId(item.physicalRecordId);
   if (id !== catalogRecordId(mutationId)) throw new Error("catalog physicalRecordId is not deterministic");
   const prior = item.supersedesRecordId === undefined
@@ -111,13 +115,13 @@ export function normalizeCatalogRecord(value: CatalogRecord): { record: CatalogR
 /** Construct one closed record while deriving its digest and physical identity. */
 export function createCatalogRecord(input: CatalogRecordInput): CatalogRecord {
   assertMutationId(input.mutationId);
-  const payload = rebuildPayload(input.payload);
+  const { payload, payloadDigest } = rebuildPayload(input.payload);
   return normalizeCatalogRecord({
     schemaVersion: 1,
     physicalRecordId: catalogRecordId(input.mutationId),
     logicalRecordId: logicalRecordId(input.logicalRecordId),
     mutationId: input.mutationId,
-    payloadDigest: canonicalDigest(payload) as OperationDigest,
+    payloadDigest,
     payload,
     ...(input.supersedesRecordId === undefined ? {} : { supersedesRecordId: input.supersedesRecordId }),
     createdAt: input.createdAt,

@@ -18,9 +18,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 import {
-  compileReconcilePaperAction, driveStagedRun, phaseStates, readPhaseOutput,
+  driveStagedRun, phaseStates, readPhaseOutput,
   resultReason, stageCompiledAction, stagedRunTracker, type StagedPackRunV1,
 } from "./runtime-fixture.js";
+import { compileReconcilePaperAction } from "./compiled-actions-fixture.js";
 
 const tracker = stagedRunTracker();
 afterEach(() => tracker.cleanupAll());

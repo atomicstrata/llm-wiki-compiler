@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
-import { openConfinedLeaf, type ConfinedLeafOpen } from "../utils/confined-read.js";
+import { openConfinedLeaf, type ConfinedLeafOpen, type ConfirmedLeafOpen } from "../utils/confined-read.js";
 import { parseInputId } from "../capability-providers/ids.js";
 import type { InputIdV1 } from "../capability-providers/types.js";
 import { MAX_PREPARATION_EVIDENCE_OBJECT_BYTES } from "./constants.js";
@@ -171,7 +171,7 @@ function buildDescriptor(meta: PreparedInputMetadataV1, bareDigest: string, byte
 }
 
 /** Capture the identity fields a later recheck must observe unchanged. */
-function identityOf(open: Extract<ConfinedLeafOpen, { kind: "confirmed" }>): CallerFileIdentityV1 {
+function identityOf(open: ConfirmedLeafOpen): CallerFileIdentityV1 {
   return { dev: open.dev, ino: open.ino, size: open.size, mode: open.mode, nlink: open.nlink };
 }
 

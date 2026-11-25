@@ -125,8 +125,9 @@ describe("the root forms", () => {
     await withRecordPreparationLockWith(lockOf([]), { id: "host", surface: "sdk", grants: ["operation-bundle.prepare"] } as never, async () => "x");
     expect([...spies, ...lockSpies].map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0, 0, 0, 0]);
     await observeOperationBundle(seed.root, seed.staged.manifestDigest);
-    expect(spies.map((spy) => spy.mock.calls[0]?.[0])).toEqual([seed.root, seed.root, seed.root, seed.root]);
-    expect([spies[2]!.mock.calls[0]?.[1], (spies[3]!.mock.calls[0]?.[1] as PageOperationMutation).target.slug]).toEqual([expect.objectContaining({ bundleId: seed.staged.bundleId }), "p"]);
+    // One pass: the key is read once, and the run is the record the inventory's walk read and authenticated.
+    expect(spies.map((spy) => spy.mock.calls.map((call) => call[0]))).toEqual([[seed.root], [seed.root], [], [seed.root]]);
+    expect((spies[3]!.mock.calls[0]?.[1] as PageOperationMutation).target.slug).toBe("p");
     await withRecordPreparationLockWith(diskRecordPreparationLock(seed.root), { id: "host", surface: "sdk", grants: ["operation-bundle.prepare"] } as never, async () => "x");
     expect([lockSpies[0]!.mock.calls, lockSpies[1]!.mock.calls]).toEqual([[[seed.root, "ordinary"]], [[seed.root]]]);
   });

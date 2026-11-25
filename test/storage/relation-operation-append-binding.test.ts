@@ -258,7 +258,7 @@ describe("the operation-bound relation create over both stores, disk and memory,
 });
 
 describe("the bound operation create's order, its unknown outcomes, and no ambient call (memory only, not real guards)", () => {
-  const repair = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  const repair = ["read events.jsonl", "private-dir", "head events.head"];
 
   it("O6 traces a fresh create exactly: two durable upgrades, each store's append writing the record ONLY, and no non-durable replacement", async () => {
     const side = memorySide(minted.fresh.copy);

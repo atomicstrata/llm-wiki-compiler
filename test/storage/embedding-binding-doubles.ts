@@ -188,5 +188,10 @@ export function copiedPageReadsOf(copy: Copy, memRoot: string, hooks: PageReadHo
       if (copy.files.has(relPath)) return true;
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     },
+    listRelativeNames: async (relDir) => {
+      const listing = copy.listings.get(relDir);
+      if (listing === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return listing.map((found) => found.name);
+    },
   };
 }

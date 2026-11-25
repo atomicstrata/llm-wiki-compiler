@@ -34,7 +34,8 @@ import {
 import * as pageEvidence from "../../src/operations-packs/runtime/page-evidence.js";
 import { builtEvidenceContextFrom } from "../../src/operations-packs/runtime/runner-input.js";
 import * as sourceEvidence from "../../src/operations-packs/runtime/source-evidence.js";
-import { compileSingleIntentAction, stageCompiledAction } from "../operations-packs/runtime-fixture.js";
+import { stageCompiledAction } from "../operations-packs/runtime-fixture.js";
+import { compileSingleIntentAction } from "../operations-packs/compiled-actions-fixture.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

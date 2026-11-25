@@ -4,7 +4,7 @@
  * naming its owner, so the two must become visible together. Creating the final
  * name first and writing the owner record into it second makes the lock briefly
  * a ZERO-BYTE file under its authoritative name — and an empty, readable leaf is
- * exactly what {@link ../utils/lock.js isLockStale} classifies as malformed and
+ * exactly what {@link ../utils/lock.js lockHolderState} classifies as malformed and
  * reclaimable. A contender polling in
  * that window therefore unlinks a lock a LIVE process is in the middle of
  * taking, creates its own, and both processes proceed believing they hold it.

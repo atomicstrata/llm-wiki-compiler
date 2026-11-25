@@ -36,7 +36,7 @@ function lockIo(unavailableLeaf?: string) {
     isOwnerProcessStale: (owner) => owner.pid !== SELF && owner.pid !== LIVE,
     entropy: (bytes) => (++entropy).toString(16).padStart(bytes * 2, "0"),
     now: () => 0, sleep: async () => {}, admit: async () => () => {},
-    park: () => {}, releaseParked: () => {}, status: () => {},
+    park: () => {}, releaseParked: () => {}, hasParked: () => false, status: () => {},
   };
   return { io, host, files, removed };
 }

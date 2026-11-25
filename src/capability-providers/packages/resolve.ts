@@ -21,7 +21,7 @@ import type {
 } from "../types.js";
 import { verifyProviderTree } from "./archive.js";
 import {
-  authorizedProviderDirectoryRealPath, bindAuthorizedProviderChildDirectory,
+  bindAuthorizedProviderChildDirectory, bindAuthorizedProviderChildDirectoryRealPath,
   bindExistingAuthorizedProviderDirectory, providerClockNow, type AuthorizedProviderDirectory,
   type AuthorizedProviderPaths,
 } from "./paths.js";
@@ -295,8 +295,8 @@ async function verifiedPackage(
     const directory = await packageDirectory(paths, pin.packageDigest);
     const payload = await readPackageEvidence(paths, directory, record, source);
     const artifact = artifactForRecord(payload, record);
-    const tree = await bindAuthorizedProviderChildDirectory(paths, directory, path.join(directory.path, "tree"));
-    await verifyProviderTree(tree.path, artifact, { expectedRootReal: await authorizedProviderDirectoryRealPath(paths, tree) });
+    const tree = await bindAuthorizedProviderChildDirectoryRealPath(paths, directory, path.join(directory.path, "tree"));
+    await verifyProviderTree(tree.directory.path, artifact, { expectedRootReal: tree.realPath });
     verifyPackageIdentity(pin, record, payload);
     return { payload, artifact };
   } catch (error) {

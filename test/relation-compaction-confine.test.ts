@@ -17,10 +17,17 @@ import path from "node:path";
 import os from "node:os";
 import { RELATIONS_FILE, WIKI_GRAPH_DIR } from "../src/utils/constants.js";
 import {
-  experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B,
-  appendRelation, updateRelation, compactRelations,
-  seedThreeVersionRelation, assertCompactionShrankTo3,
+  experimentsIdeasProfile,
+  EXPERIMENT_A as EXP_A,
+  IDEA_B,
 } from "./fixtures/profile-fixtures.js";
+import {
+  appendRelation,
+  updateRelation,
+  compactRelations,
+  seedThreeVersionRelation,
+  assertCompactionShrankTo3,
+} from "./fixtures/relation-fixtures.js";
 
 /** A minimal directed-relation profile for the compaction tests. */
 const profile = () => experimentsIdeasProfile({ tests: { from: ["experiments"], to: ["ideas"], direction: "directed" } });

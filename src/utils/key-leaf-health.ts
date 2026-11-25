@@ -14,10 +14,7 @@
 import { randomBytes } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { AtomicWriteCollisionError, atomicWriteNoReplaceDurable } from "./atomic-write.js";
-import type { openConfinedLeaf } from "./confined-read.js";
-
-/** One confined leaf whose open handle and metadata are already confirmed. */
-type ConfirmedConfinedLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>;
+import type { ConfirmedLeafOpen } from "./confined-read.js";
 
 /** The read outcomes every key epoch distinguishes before recovery. */
 type EpochKeyRecoveryRead =
@@ -32,7 +29,7 @@ export function healthyKeyMetadata(mode: number, uid: number): boolean {
 }
 
 /** Accept one stable link, or exactly one named protocol-owned companion alias. */
-export async function healthyKeyLinks(opened: ConfirmedConfinedLeaf, reservedAlias: string | undefined): Promise<boolean> {
+export async function healthyKeyLinks(opened: ConfirmedLeafOpen, reservedAlias: string | undefined): Promise<boolean> {
   if (opened.nlink === 1) return true;
   if (opened.nlink !== 2 || reservedAlias === undefined) return false;
   const alias = await lstat(reservedAlias).catch(() => null);

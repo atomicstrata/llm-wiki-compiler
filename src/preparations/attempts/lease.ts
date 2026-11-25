@@ -3,14 +3,14 @@
  * @description Advisory attempt-lease fencing (design section 12.5). A lease is
  * PID plus process start time plus a random nonce — it is neither a lock nor a
  * grant and confers no write authority. PID liveness reuses the hardened,
- * PID-reuse-safe lock-owner primitives (`readProcessStartTime`/`isOwnerStale`)
+ * PID-reuse-safe lock-owner primitives (`selfStartTime`/`isOwnerStale`)
  * rather than a weaker bare `process.kill` check. The nonce is the stale-result
  * fence: a cancelled, superseded, or recovered run rotates the recorded owner so
  * a late provider or host result cannot land under a nonce that no longer holds.
  */
 
 import { randomBytes } from "node:crypto";
-import { classifyOwnerLiveness, readProcessStartTime } from "../../utils/lock-owner.js";
+import { classifyOwnerLiveness, selfStartTime } from "../../utils/lock-owner.js";
 import type { OwnerLiveness } from "../../utils/lock-owner.js";
 import type { AttemptId } from "../ids.js";
 import type { PreparationExecutionOwnerV1 } from "../run-types.js";
@@ -26,7 +26,7 @@ const LEASE_NONCE_BYTES = 16;
  * identity.
  */
 export function mintAttemptLease(acquiredAt: string): AttemptLeaseV1 {
-  const startTime = readProcessStartTime(process.pid);
+  const startTime = selfStartTime();
   const leaseNonce = randomBytes(LEASE_NONCE_BYTES).toString("hex");
   return startTime === null
     ? { pid: process.pid, leaseNonce, acquiredAt }

@@ -6,16 +6,17 @@
  */
 
 import type { Stats } from "node:fs";
-import { lstat } from "node:fs/promises";
+import { lstat } from "../utils/fs-metadata.js";
+import type { HeldLeaf, ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import {
-  openConfinedLeaf, readConfirmedBufferOrElse,
-  type CappedLeafRead, type CappedLeafReadBuffer, type ConfinedLeafOpen,
+  openConfinedLeaf, passesPostOpenChecks, readConfirmedBufferOrElse,
+  type CappedLeafRead, type CappedLeafReadBuffer, type ConfirmedLeafOpen,
 } from "../utils/confined-read.js";
 import {
   durableTempPath, durableWritingPath,
 } from "../utils/atomic-write-no-replace-durable.js";
 
-type ConfirmedLeaf = Extract<ConfinedLeafOpen, { kind: "confirmed" }>;
+type LinkedLeaf = Pick<ConfirmedLeafOpen, "leaf" | "dev" | "ino" | "nlink">;
 
 /** Preserve absence while distinguishing an unreadable alias lookup. */
 async function optionalStat(file: string): Promise<Stats | null | undefined> {
@@ -26,36 +27,50 @@ async function optionalStat(file: string): Promise<Stats | null | undefined> {
   }
 }
 
-/** Confirm the destination still names the handle-opened inode. */
-function destinationMatches(opened: ConfirmedLeaf, destination: Stats): boolean {
-  return destination.dev === opened.dev && destination.ino === opened.ino &&
-    destination.nlink === opened.nlink;
-}
-
 /** Confirm a reserved companion names the same regular-file inode. */
-function aliasMatches(opened: ConfirmedLeaf, alias: Stats): boolean {
+function aliasMatches(opened: LinkedLeaf, alias: Stats): boolean {
   return alias.isFile() && !alias.isSymbolicLink() &&
     alias.dev === opened.dev && alias.ino === opened.ino;
 }
 
 /** Match the protocol's stable destination-only or one-companion states. */
-function companionLinksMatch(opened: ConfirmedLeaf, present: Stats[]): boolean {
+function companionLinksMatch(opened: LinkedLeaf, present: Stats[]): boolean {
   if (opened.nlink === 1) return present.length === 0;
   if (opened.nlink !== 2 || present.length !== 1) return false;
   return aliasMatches(opened, present[0]!);
 }
 
-/** Require the destination plus at most one exact protocol-owned hard link. */
-async function reservedLinksAreExact(opened: ConfirmedLeaf): Promise<boolean> {
-  const destination = await optionalStat(opened.leaf);
+async function reservedLinksAreExact(opened: LinkedLeaf): Promise<boolean> {
   const aliases = await Promise.all([
     optionalStat(durableTempPath(opened.leaf)),
     optionalStat(durableWritingPath(opened.leaf)),
   ]);
-  if (destination === null || destination === undefined || aliases.includes(null)) return false;
-  if (!destinationMatches(opened, destination)) return false;
+  if (aliases.includes(null)) return false;
   const present = aliases.filter((item): item is Stats => item !== undefined);
   return companionLinksMatch(opened, present);
+}
+
+async function heldLeafIsCurrent(held: HeldLeaf): Promise<boolean> {
+  const now = await passesPostOpenChecks(held.leaf, held.expectedReal, held.canonicalLeaf, held);
+  return now !== null && now.isFile() && now.nlink === held.nlink && now.size === held.size
+    && now.mtimeMs === held.mtimeMs && now.ctimeMs === held.ctimeMs;
+}
+
+async function provenHeldBytes(held: HeldLeaf): Promise<Buffer | undefined> {
+  if (!(await heldLeafIsCurrent(held))) return undefined;
+  return await reservedLinksAreExact(held) ? held.body : undefined;
+}
+
+const heldProofs = new WeakMap<HeldLeaf, Promise<Buffer | undefined>>();
+
+async function currentHeldBytes(
+  scanned: ScannedLeafBytes | undefined, root: string, file: string, ownedRoot: string, maxBytes: number,
+): Promise<Buffer | undefined> {
+  const held = scanned?.heldFor(root, file, ownedRoot, maxBytes);
+  if (held === undefined) return undefined;
+  let proof = heldProofs.get(held);
+  if (proof === undefined) heldProofs.set(held, proof = provenHeldBytes(held));
+  return proof;
 }
 
 /** Read exact raw bytes while accepting only a stable reserved companion. */
@@ -64,7 +79,10 @@ export async function readDurableOperationLeafBuffer(
   file: string,
   ownedRoot: string,
   maxBytes: number,
+  scanned?: ScannedLeafBytes,
 ): Promise<CappedLeafReadBuffer> {
+  const held = await currentHeldBytes(scanned, root, file, ownedRoot, maxBytes);
+  if (held !== undefined) return { kind: "ok", body: held };
   const opened = await openConfinedLeaf(root, file, ownedRoot);
   if (opened.kind !== "confirmed") return opened;
   if (!(await reservedLinksAreExact(opened))) {
@@ -84,7 +102,8 @@ export async function readDurableOperationLeaf(
   file: string,
   ownedRoot: string,
   maxBytes: number,
+  scanned?: ScannedLeafBytes,
 ): Promise<CappedLeafRead> {
-  const read = await readDurableOperationLeafBuffer(root, file, ownedRoot, maxBytes);
+  const read = await readDurableOperationLeafBuffer(root, file, ownedRoot, maxBytes, scanned);
   return read.kind === "ok" ? { kind: "ok", body: read.body.toString("utf8") } : read;
 }

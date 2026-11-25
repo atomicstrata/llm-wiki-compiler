@@ -14,6 +14,7 @@ import { collectAnswerCitationIndex, collectAnswerCitationIndexFrom, type Answer
 import { classifyAnswerCitations } from "./answer-report.js";
 import type { AnswerCitationIndex } from "./answer-types.js";
 import { parseFrontmatter } from "../utils/markdown.js";
+import { recognizedWikilinkTargets } from "../wiki/wikilink-tokens.js";
 import { createRepairResolver } from "../compiler/link-repair.js";
 import { listLinkResolvablePendingSlugs, listLinkResolvablePendingSlugsFrom } from "../compiler/candidate-read.js";
 import type { LegacyLocalRecordDirs } from "../storage/legacy-local-record-dirs.js";
@@ -34,12 +35,14 @@ export async function genericBrokenTargets(root: string, document: string): Prom
   }, document);
 }
 
-/** {@link genericBrokenTargets} over {@link GenericCitationReads}: THE ONE BODY. Index, pending slugs, then the repair-aware filter. */
+/** {@link genericBrokenTargets} over {@link GenericCitationReads}: THE ONE BODY. */
 export async function genericBrokenTargetsWith(reads: GenericCitationReads, document: string): Promise<string[]> {
+  const body = parseFrontmatter(document).body;
+  if (recognizedWikilinkTargets(body).length === 0) return [];
   const index = await reads.index();
   const pending = await reads.pendingSlugs();
   const repair = createRepairResolver(index.retained.map(page => page.slug.toLowerCase()), pending);
-  const report = classifyAnswerCitations(parseFrontmatter(document).body, index);
+  const report = classifyAnswerCitations(body, index);
   return report.citations.filter(citation => citation.status === "broken" && !repair(citation.target))
     .map(citation => citation.target);
 }

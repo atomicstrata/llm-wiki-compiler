@@ -11,7 +11,6 @@ import {
   isPortableQuarantineStorageDirectory,
   isSafeQuarantineComponent,
 } from "../paths.js";
-import { assertPreparationLifecycleNamespaceCurrent } from "./namespace.js";
 import type {
   BoundLifecycleDirectoryV1,
   BoundLifecycleRegistryV1,
@@ -335,13 +334,12 @@ async function observeRegistry(
   return { units, problems, storage: storageObservation(storage) };
 }
 
-/** Observe both physical registries once beneath one revalidated namespace. */
+/** Observe both physical registries once beneath a namespace the CALLER has just revalidated. */
 export async function observeLifecycleRegistries(
   namespace: PreparationLifecycleNamespaceV1,
   bounds: LifecycleScanBounds,
   onEnumerated?: (registry: "quarantine" | "prune") => void,
 ): Promise<LifecycleObservationSet> {
-  await assertPreparationLifecycleNamespaceCurrent(namespace);
   const quarantine = await observeRegistry(
     namespace, "quarantine", namespace.quarantineRegistry, bounds,
   );

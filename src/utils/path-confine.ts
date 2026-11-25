@@ -8,7 +8,7 @@
  * `confinedRegularFile` — the single definition of "a source file" used by
  * the scan, list, get, and delete paths to stay in agreement.
  */
-import { lstat } from "fs/promises";
+import { lstat } from "./fs-metadata.js";
 import path from "path";
 import { SOURCES_DIR } from "./constants.js";
 import { portableRealpath } from "./portable-realpath.js";
@@ -29,6 +29,18 @@ export async function safeRealpath(p: string, opts: StrictIoOptions = {}): Promi
     if (opts.strictIo && !["ENOENT", "ENOTDIR", "ELOOP"].includes(code ?? "")) throw err;
     return null;
   }
+}
+
+/** {@link safeRealpath} of `p`, looked up on the first call and kept for every later one, concurrent calls included. */
+export function realpathOnce(p: string): () => Promise<string | null> {
+  let lookup: Promise<string | null> | undefined;
+  return () => {
+    lookup ??= safeRealpath(p).then((real) => {
+      if (real === null) lookup = undefined;
+      return real;
+    });
+    return lookup;
+  };
 }
 
 /**
@@ -126,6 +138,14 @@ export function resolveSourcesDir(root: string): Promise<string | null> {
   return resolveRealDir(root, SOURCES_DIR);
 }
 
+async function nearestExistingRealpath(start: string, onlyStart: boolean): Promise<{ at: string; real: string } | null> {
+  for (let at = start; ; at = path.dirname(at)) {
+    const real = await safeRealpath(at);
+    if (real !== null) return { at, real };
+    if (onlyStart || path.dirname(at) === at) return null; // no existing ancestor up to the filesystem root
+  }
+}
+
 /**
  * Confine a caller-supplied path under `root` and return its absolute form, or THROW.
  * `mustExist:true` (an input dir) requires the realpath to exist inside root.
@@ -138,21 +158,15 @@ export async function confineUnderRoot(
   root: string,
   opts: { mustExist: boolean },
 ): Promise<string> {
-  const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  const lexicalRoot = path.resolve(root);
+  const lexicalAbs = path.normalize(path.resolve(lexicalRoot, target));
+  const probe = isInsideDir(lexicalAbs, lexicalRoot) ? await nearestExistingRealpath(lexicalAbs, opts.mustExist) : undefined;
+  if (probe && probe.real === probe.at && isInsideDir(probe.at, lexicalRoot)) return lexicalAbs;
+  const realRoot = (await safeRealpath(root)) ?? lexicalRoot;
   const abs = path.normalize(path.resolve(realRoot, target));
   if (!isInsideDir(abs, realRoot)) throw new Error(`path escapes project root: ${target}`);
-  if (opts.mustExist) {
-    const real = await safeRealpath(abs);
-    if (real === null || !isInsideDir(real, realRoot)) throw new Error(`path escapes project root: ${target}`);
-    return real;
-  }
-  for (let cur = abs; ; cur = path.dirname(cur)) {
-    const real = await safeRealpath(cur);
-    if (real !== null) {
-      if (!isInsideDir(real, realRoot)) throw new Error(`path escapes project root: ${target}`);
-      break;
-    }
-    if (path.dirname(cur) === cur) break; // reached filesystem root without an existing ancestor
-  }
-  return abs;
+  const found = probe !== undefined && abs === lexicalAbs ? probe : await nearestExistingRealpath(abs, opts.mustExist);
+  const escapes = found === null ? opts.mustExist : !isInsideDir(found.real, realRoot);
+  if (escapes) throw new Error(`path escapes project root: ${target}`);
+  return opts.mustExist && found !== null ? found.real : abs;
 }

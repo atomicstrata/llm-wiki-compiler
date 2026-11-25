@@ -4,6 +4,7 @@
  * confinement, parsing, and classification still run against real fixtures.
  */
 import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { fsMetadataThroughPromises } from "./fixtures/fs-metadata-through-promises.js";
 import { mocked } from "./mocked.js";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
@@ -25,6 +26,9 @@ vi.mock("fs/promises", () => {
   return { ...actual, readFile: vi.fn(actual.readFile), realpath: vi.fn(actual.realpath),
     open: vi.fn(actual.open), readdir: vi.fn(actual.readdir) };
 });
+
+// Route the primitives' metadata lookups through the mocked fs/promises above.
+vi.mock("../src/utils/fs-metadata.js", fsMetadataThroughPromises);
 
 let root: string;
 beforeEach(async () => { root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "answer-index-"))); });

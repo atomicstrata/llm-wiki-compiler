@@ -96,8 +96,12 @@ mintOnceThenRemove(tracker, async () => {
 const rulesOf = (results: readonly LintResult[]): string[] => results.map((result) => result.rule);
 const firstOf = (log: string[], prefix: string): number => log.findIndex((call) => call.startsWith(prefix));
 const lastOf = (log: string[], prefix: string): number => log.map((call) => call.startsWith(prefix)).lastIndexOf(true);
-/** How many separate page walks one default run makes: ten plain page rules, the schema rule and the freshness rule. */
-const PAGE_WALKS = 12;
+/**
+ * How often one default run reads each page: once. Twelve rules walk the pages
+ * (ten plain page rules, the schema rule and the freshness rule), but a run
+ * shares one read per page between them.
+ */
+const PAGE_READS_PER_RUN = 1;
 
 describe("the lint coordinator over a copied default-profile project, with the directory gone", () => {
   it("C1 runs after both minting directories were removed", () => {
@@ -129,10 +133,10 @@ describe("the lint coordinator over a copied default-profile project, with the d
     expect(firstOf(log, "freshness read")).toBeLessThan(firstOf(log, "workflow."));
   });
 
-  it("C4 walks the pages once per page rule, and loads the appendix profile last and apart from the workflow rule's", async () => {
+  it("C4 reads each page once for all page rules, and loads the appendix profile last and apart from the workflow rule's", async () => {
     const log: string[] = [];
     await lintBothViewsFrom(sourcesOver(plain, log, NO_ENTITIES));
-    expect(countOf(log, `page ${ALPHA}`)).toBe(PAGE_WALKS);
+    expect(countOf(log, `page ${ALPHA}`)).toBe(PAGE_READS_PER_RUN);
     expect(countOf(log, `page ${EXTRA}`)).toBe(0);
     expect(countOf(log, "workflow.leaf profile.json")).toBe(1);
     expect(countOf(log, "appendix.leaf profile.json")).toBe(1);
@@ -146,7 +150,7 @@ describe("the lint coordinator over a copied default-profile project, with the d
     const views = await lintBothViewsFrom(sourcesOver(plain, log, NO_ENTITIES), "wiki-wide");
     expect(views).toEqual(plain.onDisk.wide);
     expect(countOf(log, `page ${EXTRA}`)).toBe(1);
-    expect(countOf(log, `page ${ALPHA}`)).toBe(PAGE_WALKS);
+    expect(countOf(log, `page ${ALPHA}`)).toBe(PAGE_READS_PER_RUN);
     const broken = views.summary.results.filter((result) => result.rule === "broken-wikilink");
     expect(broken.map((result) => path.relative(plain.dir, result.file)).sort()).toEqual([ALPHA, EXTRA]);
     expect(rulesOf(views.summary.results).filter((rule) => rule !== "broken-wikilink")).toEqual(["low-confidence", "stale-page"]);
@@ -198,7 +202,7 @@ describe("the lint coordinator over a copied legacy-profile project", () => {
     const log: string[] = [];
     const entities = { ...entitiesOver(custom, () => {}), scans: { openEntityDirectory: async () => { throw failure; } } };
     await expect(lintBothViewsFrom(sourcesOver(custom, log, entities))).rejects.toBe(failure);
-    expect(countOf(log, `page ${ALPHA}`)).toBe(PAGE_WALKS);
+    expect(countOf(log, `page ${ALPHA}`)).toBe(PAGE_READS_PER_RUN);
     expect(countOf(log, "appendix.leaf profile.json")).toBe(1);
   });
 });

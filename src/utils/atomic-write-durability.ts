@@ -7,8 +7,9 @@
  * module's established public surface.
  */
 
-import { lstat, open, realpath } from "fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { open } from "fs/promises";
+import { lstat, realpath } from "./fs-metadata.js";
+import { constants as fsConstants, type Stats } from "node:fs";
 import path from "path";
 import { isInsideDir } from "./path-confine.js";
 import type { DirectoryIdentity, DirectorySyncScope } from "./directory-sync-scope.js";
@@ -26,12 +27,12 @@ export interface ParentBinding {
   ino: number;
 }
 
-/** Directory pathname and inode captured before its strict metadata sync. */
 interface DirectoryBinding {
   dir: string;
   realDir: string;
   dev: number;
   ino: number;
+  parentBound: boolean;
 }
 
 /** Test-only observation or failure seam before a strict directory fsync. */
@@ -43,32 +44,56 @@ export async function fsyncDirectory(dir: string): Promise<void> {
 }
 
 /**
- * Persist every directory entry from the leaf parent through the project root.
+ * Persist the leaf parent's directory entry, then every ancestor entry up to the
+ * project root, and confirm the write parent is still the bound directory.
  *
  * With a {@link DirectorySyncScope} (opt-in, one locked batch), ancestors whose
  * freshly validated identity chain was already anchored in the scope are not
  * re-synced; see {@link fsyncDirectoryChainScoped}. Without one, every
  * directory on the chain is synced exactly as before.
+ *
+ * `checkParent: false` is for a caller whose very next step checks the write
+ * parent itself (`assertCurrentParent`, directly or as the first step of
+ * `assertPublishedDestination`, `assertSettledDestination` or
+ * `removeCommittedTemp`), so the unscoped walk leaves out its own final check.
  */
 export async function fsyncDirectoryChain(
   dir: string,
   parent?: ParentBinding,
   beforeSync?: BeforeDirectorySync,
   scope?: DirectorySyncScope,
+  checkParent = true,
 ): Promise<void> {
   if (scope !== undefined) {
     await fsyncDirectoryChainScoped(dir, requireScopedParent(parent, scope), beforeSync, scope);
     return;
   }
-  const boundary = path.resolve(parent?.lexicalRoot ?? dir);
-  let current = path.resolve(dir);
-  for (;;) {
-    await fsyncDirectoryChainEntry(canonicalSyncPath(current, parent), current, parent, beforeSync);
-    if (current === boundary) return;
-    const ancestor = nextDirectoryInChain(current, boundary);
-    if (ancestor === null) return;
-    current = ancestor;
+  await syncChain(dir, parent, beforeSync, checkParent);
+}
+
+async function syncChain(
+  dir: string,
+  parent: ParentBinding | undefined,
+  beforeSync: BeforeDirectorySync | undefined,
+  checkLast: boolean,
+): Promise<void> {
+  const [leaf, ...ancestors] = lexicalChain(dir, parent?.lexicalRoot ?? dir);
+  await beforeSync?.(leaf);
+  await fsyncBoundDirectory(await chainStart(leaf, parent));
+  for (const ancestor of ancestors) {
+    await recheckWriteParent(parent);
+    await beforeSync?.(ancestor);
+    await fsyncBoundDirectory(await captureDirectoryBinding(canonicalSyncPath(ancestor, parent)));
   }
+  if (checkLast) await recheckWriteParent(parent);
+}
+
+async function chainStart(current: string, parent: ParentBinding | undefined): Promise<DirectoryBinding> {
+  const canonical = canonicalSyncPath(current, parent);
+  if (parent === undefined || path.resolve(parent.dir) !== current || canonical !== parent.realDir) {
+    return captureDirectoryBinding(canonical);
+  }
+  return { dir: canonical, realDir: parent.realDir, dev: parent.dev, ino: parent.ino, parentBound: true };
 }
 
 /** Verify the current parent directory is still the captured confined directory. */
@@ -108,8 +133,8 @@ export function requireScopedParent(parent: ParentBinding | undefined, scope: Di
 }
 
 /** Lexical directories from `dir` up to and including the bound root. */
-function lexicalChain(dir: string, parent: ParentBinding): string[] {
-  const boundary = path.resolve(parent.lexicalRoot);
+function lexicalChain(dir: string, root: string): string[] {
+  const boundary = path.resolve(root);
   const chain = [path.resolve(dir)];
   for (;;) {
     const current = chain[chain.length - 1];
@@ -136,7 +161,7 @@ async function fsyncDirectoryChainScoped(
   beforeSync: BeforeDirectorySync | undefined,
   scope: DirectorySyncScope,
 ): Promise<void> {
-  const chain = lexicalChain(dir, parent);
+  const chain = lexicalChain(dir, parent.lexicalRoot);
   const synced: DirectoryIdentity[] = [];
   for (let i = 0; i < chain.length; i++) {
     if (i > 0) {
@@ -197,28 +222,26 @@ function nextDirectoryInChain(current: string, boundary: string): string | null 
   return ancestor !== current && isInsideDir(ancestor, boundary) ? ancestor : null;
 }
 
-/** Capture one non-symlink directory before any test seam or sync occurs. */
-async function captureDirectoryBinding(dir: string): Promise<DirectoryBinding> {
+async function captureDirectoryBinding(dir: string, known?: Stats): Promise<DirectoryBinding> {
   const resolved = path.resolve(dir);
-  const stat = await lstat(resolved);
+  const stat = known ?? await lstat(resolved);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`refusing to sync a redirected directory: ${resolved}`);
   }
-  return { dir: resolved, realDir: await realpath(resolved), dev: stat.dev, ino: stat.ino };
+  return { dir: resolved, realDir: await realpath(resolved), dev: stat.dev, ino: stat.ino, parentBound: false };
 }
 
-/** Sync only the exact directory inode captured for this pathname. */
-async function fsyncBoundDirectory(binding: DirectoryBinding): Promise<void> {
-  await assertDirectoryBinding(binding);
+/** Sync the bound directory; returns its `fstat`, taken before the sync. */
+async function fsyncBoundDirectory(binding: DirectoryBinding): Promise<Stats> {
   const handle = await open(binding.dir, DIRECTORY_OPEN_FLAGS);
   try {
     const opened = await handle.stat();
     if (!opened.isDirectory() || opened.dev !== binding.dev || opened.ino !== binding.ino) {
       throw new Error(`directory changed before sync: ${binding.dir}`);
     }
-    await assertDirectoryBinding(binding);
     await handle.sync();
-    await assertDirectoryBinding(binding);
+    if (!binding.parentBound) await assertDirectoryBinding(binding);
+    return opened;
   } finally {
     await handle.close();
   }

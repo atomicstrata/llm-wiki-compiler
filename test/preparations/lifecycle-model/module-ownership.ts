@@ -119,6 +119,7 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   { path: "src/preparations/manifest-store.ts", role: "unrelated-preparation", rawFilesystemAccess: false },
   { path: "src/preparations/materialization.ts", role: "unrelated-preparation", rawFilesystemAccess: false },
   { path: "src/preparations/orphan-scan.ts", role: "filesystem-owner", rawFilesystemAccess: false },
+  { path: "src/preparations/pass-reads.ts", role: "read-consumer", rawFilesystemAccess: false },
   { path: "src/preparations/paths.ts", role: "path-schema", rawFilesystemAccess: false },
   { path: "src/preparations/plan-bounds.ts", role: "unrelated-preparation", rawFilesystemAccess: false },
   { path: "src/preparations/plan-graph.ts", role: "unrelated-preparation", rawFilesystemAccess: false },
@@ -245,23 +246,28 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   // A pure in-memory memo of fsync-anchored directory chains for one locked batch; no I/O.
   { path: "src/utils/directory-sync-scope.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/evidence-path.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  { path: "src/utils/fs-metadata.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/fs-presence.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/hmac-equal.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/inventory-arithmetic.ts", role: "shared-primitive", rawFilesystemAccess: false },
   // The local-disk walk reads both orphan scans hand their scan body; path joins only, the I/O stays in inventory-scan.
   { path: "src/utils/inventory-disk-walk.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // Opens a run of walk leaves ahead and proves their directory once after the last open.
+  { path: "src/utils/inventory-leaf-read-ahead.ts", role: "shared-primitive", rawFilesystemAccess: true },
   // The no-follow I/O moved here; store classification remains in orphan-scan.
   { path: "src/utils/inventory-scan.ts", role: "shared-primitive", rawFilesystemAccess: true },
   // Key-leaf mode, ownership and link-count health shared by both key epochs.
-  // Reads a process start time from the kernel (/proc on Linux) for lock owners.
   { path: "src/utils/kernel-start-time.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/key-leaf-health.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/keyed-fifo.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // The lock-held read memo that atomic-write.ts clears on every write.
+  { path: "src/utils/lock-held-reads.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/lock-owner.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/lock-publication.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/lock.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/no-follow-open.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/output.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  { path: "src/utils/pass-memo.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/path-confine.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/planned-bytes.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/portable-realpath.ts", role: "shared-primitive", rawFilesystemAccess: true },
@@ -270,7 +276,12 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   { path: "src/utils/run-history-projection.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/run-store-io.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/runtime-capture.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // Holds the leaf bytes one pass's inventory walk read, for that pass's readers; no I/O of its own.
+  { path: "src/utils/scanned-leaf-bytes.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // The shared page-read window that atomic-write.ts drops a written path from.
+  { path: "src/utils/shared-read-window.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/stream-digest.ts", role: "shared-primitive", rawFilesystemAccess: true },
+  { path: "src/utils/verified-bytes-memo.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/well-formed-unicode.ts", role: "shared-primitive", rawFilesystemAccess: false },
 ];
 

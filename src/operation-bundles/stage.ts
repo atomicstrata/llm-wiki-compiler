@@ -27,12 +27,12 @@ import {
   type OperationRunId,
 } from "./ids.js";
 import {
-  createOperationKeyForEmptyEpochLocked, readOperationKey,
-  type OperationKeyRead,
+  createOperationKeyForEmptyEpochLocked, type OperationKeyRead,
 } from "./key-epoch.js";
 import { validateBundleGraphSet } from "./manifest-graph.js";
 import { operationManifestDigest, parseOperationManifest } from "./manifest-parse.js";
 import { writeOperationManifestCreateOnly } from "./manifest-store.js";
+import { operationPassReads } from "./pass-reads.js";
 import { assertWorkspaceId } from "./paths.js";
 import { writePayloadCreateOnly } from "./payload-store.js";
 import { OPERATION_GRANTS, OPERATION_PRINCIPAL_SURFACES } from "./principal.js";
@@ -145,11 +145,11 @@ type StageMaterializationArgs = [
   inventory: OperationInventory, runBytes: Buffer | undefined,
 ];
 
-/** The local-disk staging steps for one root, built per call; each closure calls the incumbent when asked. In no package index. */
 function diskOperationStageSteps(root: string): OperationStageSteps {
+  const pass = operationPassReads(root);
   return {
-    scanInventory: () => scanOperationInventory(root),
-    readKey: () => readOperationKey(root),
+    scanInventory: () => scanOperationInventory(root, {}, pass),
+    readKey: pass.readKey,
     inspectMaterialization: (...args) => inspectStageMaterialization(root, ...args),
     assertReviewIdentityAvailable: (bundleId) => assertReviewIdentityAvailable(root, bundleId),
     createKeyForEmptyEpoch: (epoch) => createOperationKeyForEmptyEpochLocked(root, epoch),

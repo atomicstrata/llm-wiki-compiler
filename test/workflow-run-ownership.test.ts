@@ -16,7 +16,7 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
 import { plantSignedRun } from "./fixtures/run-integrity.js";
-import { readOkRun } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 import { runAction } from "../src/workflows/run-action.js";
 import { startWorkflow } from "../src/workflows/start.js";
 import { cancelWorkflow } from "../src/workflows/cancel.js";

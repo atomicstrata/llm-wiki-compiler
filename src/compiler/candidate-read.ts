@@ -88,14 +88,16 @@ export interface CandidateMutationScanHooks {
  * over the custody-read mechanisms. The ordinary confined resolution (aliases
  * allowed) decides absence first (`null`); only then is the binding captured,
  * literal by default, and a binding that vanished in between is
- * `CandidateCustodyUnavailableError`.
+ * `CandidateCustodyUnavailableError`. When aliases are allowed the resolution
+ * already IS that binding (the same capture with the same arguments), so it is
+ * returned rather than captured again back to back.
  */
 export async function captureCandidateMutationStoreBindingFrom(
   reads: CandidateCustodyReads,
   requireLiteral = true,
 ): Promise<CandidateStoreBinding | null> {
   const resolved = await reads.captureDirectory(CANDIDATES_DIR);
-  if (resolved === null) return null;
+  if (resolved === null || !requireLiteral) return resolved;
   const binding = await reads.captureDirectory(CANDIDATES_DIR, requireLiteral);
   if (binding === null) throw new CandidateCustodyUnavailableError();
   return binding;

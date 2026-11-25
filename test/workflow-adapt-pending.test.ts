@@ -20,8 +20,8 @@ import {
   ADAPT_REMOVED_STAGES as REMOVED,
   buildWorkflowProfile,
   installWorkflowProfile,
-  readOkRun,
 } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { startWorkflow } from "../src/workflows/start.js";
 import { adaptApply } from "../src/workflows/adapt.js";

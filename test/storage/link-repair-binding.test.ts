@@ -211,14 +211,15 @@ describe("the reads a link repair pass makes, and when", () => {
     expect(log).toEqual([...readsOf(CONCEPTS_DIR), `list ${QUERIES_DIR}`]);
   });
 
-  it("L7 warns once about a dropped page that is physically there, naming its directory-qualified path, before the next read, and plans the rest", async () => {
+  it("L7 reads the directory in listing order, then warns once about a dropped page that is physically there, naming its directory-qualified path, and plans the rest", async () => {
     const { sources, log } = passOver(wiki.copy, droppingDeployment());
     expect(await repairLinksFrom(sources)).toEqual([wiki.onDisk[1]]);
     const warnings = log.filter((call) => call.startsWith("status ! "));
     expect([warnings.length, warnings[0]!.includes(`Dropped wiki read (escapes-dir): ${DEPLOYMENT_FILE} — `)]).toEqual([1, true]);
-    const at = log.indexOf(`page ${CONCEPTS_DIR}/deployment`);
-    expect(log.slice(at, at + 3)).toEqual([`page ${CONCEPTS_DIR}/deployment`, `stat ${DEPLOYMENT_FILE}`, warnings[0]]);
-    expect(log.slice(0, at + 1)).toEqual(readsOf(CONCEPTS_DIR).slice(0, at + 1));
+    const reads = readsOf(CONCEPTS_DIR);
+    expect(log.slice(0, reads.length)).toEqual(reads);
+    const at = log.indexOf(`stat ${DEPLOYMENT_FILE}`);
+    expect(log.slice(at, at + 2)).toEqual([`stat ${DEPLOYMENT_FILE}`, warnings[0]]);
   });
 
   it.each([{ look: "absent", presence: enoent() }, { look: "refused", presence: refused() }])("L8 does NOT warn about a dropped page when the no-follow look is $look, and carries on", async ({ presence }) => {
