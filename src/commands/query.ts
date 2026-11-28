@@ -23,6 +23,7 @@
 
 import path from "path";
 import { callClaude } from "../utils/llm.js";
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
 import { locationExistsSync } from "../storage/disk-locations.js";
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { languageDirective } from "../utils/output-language.js";
@@ -109,6 +110,7 @@ async function callAnswerLLM(
   const userMessage =
     `Question: ${question}\n\nRelevant wiki pages:\n${pagesContent}${provenance}`;
   return callClaude({
+    purpose: "query.answer",
     system: buildAnswerSystemPrompt(),
     messages: [{ role: "user", content: userMessage }],
     stream: Boolean(onToken),
@@ -206,6 +208,11 @@ export async function generateAnswerFrom(
   // a `papers/foo` ref loads wiki/<papers-dir>/foo.md, never wiki/concepts/foo.md.
   // The live pairs are the grounding identity: only pages the model is shown.
   const hydratedPairs = await reads.hydrate(selection.refs);
+  const hydratedIds = new Set(hydratedPairs.map((pair) => pair.pageId));
+  const scope = compilerModelScope();
+  if (scope?.kind === "query" && selection.refs.some((ref) => !hydratedIds.has(ref.pageId))) {
+    scope.refuse(new CompilerOperationError("retrieval_context_incomplete"));
+  }
   const pagesContent = renderRefRecords(hydratedPairs);
   verbose(`context pack: ${pagesContent.length} chars`);
 
@@ -215,7 +222,6 @@ export async function generateAnswerFrom(
 
   // Excerpts are restricted to the reported live parents, so an excerpt whose
   // page fell beyond the ref cap or failed to hydrate never reaches the model.
-  const hydratedIds = new Set(hydratedPairs.map((pair) => pair.pageId));
   const promptChunks = selection.chunks.filter((chunk) => hydratedIds.has(chunk.pageId));
   const answer = await timeStage("query.answer", () => callAnswerLLM(question, pagesContent, promptChunks, options.onToken));
   // Advisory citation report over the canonical saved body: a snapshot for the
@@ -229,7 +235,7 @@ export async function generateAnswerFrom(
   // their no-activity-log contract; a saved scoped answer is a write.
   // Log only after generation succeeds, naming only the hydrated grounding.
   const resultFields = buildResultFields(selection, hydratedPairs);
-  if (options.review !== true && (options.save === true || options.pageScope === undefined)) {
+  if (!compilerModelScope() && options.review !== true && (options.save === true || options.pageScope === undefined)) {
     await reads.log(question, resultFields.pageIds.length > 0 ? [`Pages: ${formatWikilinkList(resultFields.pageIds)}`] : []);
   }
 

@@ -24,7 +24,7 @@ import {
   type EmbeddingLoadOutcome,
   type EmbeddingWarning,
 } from "../utils/embeddings-load.js";
-import type { EmbeddingStoreV3 } from "../utils/embeddings-store.js";
+import type { SearchableEmbeddingStore } from "../utils/embeddings-load.js";
 import {
   loadSelectedPagesByPageId,
   loadPageRecordPairsByPageId,
@@ -152,7 +152,7 @@ interface SemanticFinders {
 }
 
 /** A lookup's arguments after the place pages are read from: store, surface, question, K, profile. */
-type FinderArgs = [store: EmbeddingStoreV3, surface: "search", question: string, k: number, profile: LoadedProfile];
+type FinderArgs = [store: SearchableEmbeddingStore, surface: "search", question: string, k: number, profile: LoadedProfile];
 
 /** The one selection both forms share: semantic lookups first, then the fallback. */
 async function selectSearchRefs(
@@ -214,7 +214,7 @@ export function withStaleWarning(base: SearchWarning[], stalePageIds: PageId[]):
  */
 async function selectViaEmbeddings(
   finders: SemanticFinders,
-  store: EmbeddingStoreV3,
+  store: SearchableEmbeddingStore,
   question: string,
   profile: LoadedProfile,
   options: RetrievalOptions,

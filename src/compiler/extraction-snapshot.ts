@@ -16,6 +16,7 @@ import type { ExtractionResult } from "./deps.js";
 import { buildExtractionPrompt, CONCEPT_EXTRACTION_TOOL, PROMPT_VERSION } from "./prompts.js";
 import { plainConceptTitle } from "./concept-title.js";
 import { noPagesLimitEnabled } from "./prompt-modifiers.js";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 
 /** Build the snapshot schema; see `snapshotSchema` for why zod is loaded here. */
 function buildSnapshotSchema() {
@@ -50,9 +51,10 @@ export function extractionSourceHash(content: string): string {
 }
 
 /** Bind reuse to the extraction contract, language/policy, provider and model. */
-function extractionFingerprint(): string {
+export function extractionFingerprint(): string {
+  const host = compilerModelScope()?.models.extraction;
   return extractionSourceHash(JSON.stringify([
-    PROMPT_VERSION, getActiveProviderName(), resolveActiveModelId(),
+    PROMPT_VERSION, host?.provider ?? getActiveProviderName(), host?.model ?? resolveActiveModelId(),
     buildExtractionPrompt("", ""), CONCEPT_EXTRACTION_TOOL,
   ]));
 }

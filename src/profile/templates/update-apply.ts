@@ -12,6 +12,7 @@
  * root form keeps the recovery gate before the prefetch, the test seam after it,
  * the re-acquire and recovery, then the tap lock, exactly as before.
  */
+import { assertProfileChangeAllowed } from "../../indexed/profile-guard.js";
 import path from "node:path";
 import { releaseLock } from "../../utils/lock.js";
 import { acquireMutationLockBlocking } from "../../operation-bundles/lock-gate.js";
@@ -60,10 +61,12 @@ export async function applyRemoteTemplateUpdate(
   options: RemoteUpdateApplyOptions = {},
 ): Promise<RemoteUpdateResult> {
   await recoverBeforePlanning(root);
+  await assertProfileChangeAllowed(root);
   const prefetched = await resolveRemoteUpdatePairForRoot(root, paths, toVersion, false);
   await options.afterPrefetchForTest?.();
   await acquireMutationLockBlocking(root, "ordinary");
   try {
+    await assertProfileChangeAllowed(root);
     await recoverOrRefuse(root);
     return await withTapStateLock(paths, async () =>
       applyRemoteUpdateLockedWith(localRemoteUpdateSteps(root, paths, options), toVersion, prefetched));

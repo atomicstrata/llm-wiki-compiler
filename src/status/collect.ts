@@ -25,6 +25,7 @@
  * lifecycle read and proof stay root-bound disk authority, unchanged.
  */
 
+import { catalogStatus, type CatalogStatusV1 } from "../catalog/facade.js";
 import path from "path";
 import { listSelectedSourceFilesFrom } from "../sources/scan.js";
 import { collectPageSummariesFrom, diskWikiPageScanReads, scanWikiPagesFrom, type WikiPageScanReads } from "../compiler/indexgen.js";
@@ -61,6 +62,12 @@ export const MAX_STATUS_LIST = 100;
 
 /** Shape returned by `collectStatus` and surfaced by the `wiki_status` tool. */
 export interface WikiStatus {
+  /**
+   * ADDITIVE, `local-indexed` projects only: the catalog's counts and
+   * freshness. The rest of this snapshot is still the global freshness audit
+   * (every source hashed), which the catalog does not bound.
+   */
+  catalog?: CatalogStatusV1;
   pages: { concepts: number; queries: number; total: number };
   sources: number;
   lastCompiledAt: string | null;
@@ -303,7 +310,9 @@ function diskStatusSources(root: string): StatusSources {
 /** Build a read-only status snapshot used by the `wiki_status` MCP tool. */
 export async function collectStatus(root: string): Promise<WikiStatus> {
   // `async` so that a throw while the disk sources are built REJECTS.
-  return collectStatusFrom(statusReadsOver(diskStatusSources(root)));
+  const status = await collectStatusFrom(statusReadsOver(diskStatusSources(root)));
+  const catalog = await catalogStatus(root);
+  return catalog.active ? { catalog, ...status } : status;
 }
 
 /** {@link collectStatus} through `reads`: THE ONE BODY. See {@link StatusReads} for the order of the reads. */

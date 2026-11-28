@@ -16,7 +16,9 @@ const REPO = path.resolve(import.meta.dirname, "..", "..");
 const PACKAGES = ["llmwiki-dev-backend", "llmwiki-limited-isolation-backend"] as const;
 const ALLOWED_IMPORTS = new Set(["@atomicstrata/llmwiki-core", "llmwiki-dev-backend", "llmwiki-limited-isolation-backend"]);
 const dirs: string[] = [];
-afterEach(async () => { for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true }); });
+/** Removing an installed consumer deletes thousands of files; on slow disks that outlasts Bun's default hook timeout. */
+const CLEANUP_TIMEOUT_MS = 120_000;
+afterEach(async () => { for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true }); }, CLEANUP_TIMEOUT_MS);
 
 /** `npm pack` one package into a fresh dir; return the tarball's entry list. */
 function packEntries(name: string): { tarball: string; entries: string[] } {

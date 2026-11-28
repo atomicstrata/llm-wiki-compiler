@@ -196,12 +196,18 @@ describe("relation update and compaction: one body over the real local-disk sour
     const updateSources = { graph: logged(base.graph, "graph", log), events: logged(base.events, "events", log) };
     const updated = await updateRelationLockedFrom(updateSources, profile, created.id, { attributes: {} });
     expect(updated.id).toBe(created.id);
-    const mainline = (entries: string[]) => entries.filter((entry) => entry.startsWith("graph.") || entry.startsWith("rewrite.") || entry === "events.appendStore");
+    // `segmentedRelations` is the local-indexed ROUTING probe, not store I/O: each body asks it before any read (a
+    // local-indexed project dispatches to the segmented log there); on this local-standard project the incumbent
+    // single-file journey then runs unchanged, so the probe is pinned first and the store I/O is pinned in order.
+    const routing = "graph.segmentedRelations";
+    const mainline = (entries: string[]) => entries.filter((entry) => (entry.startsWith("graph.") && entry !== routing) || entry.startsWith("rewrite.") || entry === "events.appendStore");
+    expect(log[0]).toBe(routing);
     expect(mainline(log)).toEqual(["graph.readStore", "graph.appendStore", "events.appendStore"]);
     log.length = 0;
     const compaction = diskRelationCompactionSources(root);
     const compactSources = { graph: logged(compaction.graph, "graph", log, { prepareRewrite: "rewrite" }), events: logged(compaction.events, "events", log) };
     const sizes = await compactRelationsLockedFrom(compactSources, profile);
+    expect(log[0]).toBe(routing);
     expect(mainline(log)).toEqual(["graph.readStore", "graph.prepareRewrite", "graph.readStore", "rewrite.replace", "events.appendStore", "rewrite.size"]);
     expect([sizes.after < sizes.before, (await readFile(path.join(root, RELATIONS_FILE), "utf8")).split("\n").filter(Boolean).length]).toEqual([true, 2]);
   });

@@ -92,12 +92,11 @@ describe("lock hardening — symlinked lock leaf (security)", () => {
   }
 
   it("acquireLock does NOT follow a symlinked leaf to the out-of-tree victim", async () => {
-    // Victim holds OUR pid: a bare readFile would follow it, parse a LIVE pid, and
-    // refuse to acquire. The no-follow reader sees ELOOP → stale → reclaims cleanly.
+    // The no-follow reader sees ELOOP and refuses acquisition without touching
+    // either the occupied lock name or the out-of-tree victim.
     const victim = await plantSymlinkedLeaf(String(process.pid));
-    expect(await acquireLock(root)).toBe(true);
-    // The victim bytes were never used as the owner (we did not treat it as live),
-    // and the victim file itself is untouched.
+    expect(await acquireLock(root)).toBe(false);
+    expect(await existsUnder(root, LOCK_REL)).toBe(true);
     expect(await readFile(victim, "utf-8")).toBe(String(process.pid));
   });
 

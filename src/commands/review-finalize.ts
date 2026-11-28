@@ -175,7 +175,7 @@ function carriesDefaultSourceState(candidate: ReviewCandidate): boolean {
  *
  * @returns Whether any candidate contributed.
  */
-function mergeApprovedSourceStates(state: WikiState, candidates: readonly ReviewCandidate[]): boolean {
+export function mergeApprovedSourceStates(state: WikiState, candidates: readonly ReviewCandidate[]): boolean {
   const defaults = candidates.filter(carriesDefaultSourceState);
   for (const candidate of defaults) {
     for (const [source, entry] of Object.entries(candidate.sourceStates!)) {

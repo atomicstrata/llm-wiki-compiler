@@ -78,6 +78,7 @@ import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
 import type { WikiState } from "../utils/types.js";
 import type { PageId } from "../utils/page-id.js";
+import { reconcileCatalogIfIndexed } from "../catalog/routes.js";
 
 export type { RemovalPlan } from "./removal-plan.js";
 
@@ -469,7 +470,8 @@ function sameSlugs(left: string[], right: string[]): boolean {
  * @param root - Absolute project root.
  */
 export async function regenerateDerivedLocked(root: string): Promise<void> {
-  return regenerateDerivedWith(diskDerivedRegenerationSteps(root));
+  await regenerateDerivedWith(diskDerivedRegenerationSteps(root));
+  await reconcileCatalogIfIndexed(root);
 }
 
 /** The three steps derived regeneration takes, for ONE project. No member takes a project root. */

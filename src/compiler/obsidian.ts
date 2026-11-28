@@ -177,7 +177,7 @@ export async function generateMOCFrom(sources: MocGenerationSources): Promise<vo
 }
 
 /** Minimal page info needed for MOC generation. */
-interface PageInfo {
+export interface PageInfo {
   slug: string;
   title: string;
   tags: string[];
@@ -218,13 +218,25 @@ async function loadConceptPages(sources: MocGenerationSources): Promise<PageInfo
 }
 
 /** The MOC entry for one page, or `null` for an empty or orphaned page. */
-function mocPageInfo(slug: string, content: string): PageInfo | null {
+export function mocPageInfo(slug: string, content: string): PageInfo | null {
   if (!content) return null;
   const { meta } = parseFrontmatter(content);
   if (meta.orphaned) return null;
   const title = typeof meta.title === "string" ? meta.title : slug;
   const tags = Array.isArray(meta.tags) ? (meta.tags as string[]) : [];
   return { slug, title, tags };
+}
+
+/**
+ * The Map of Content built from concept page text already in hand: the same
+ * content {@link generateMOC} writes, for a host that keeps pages in a store
+ * rather than a directory.
+ *
+ * @param pages - Every concept page as its slug and full content.
+ */
+export function mocContentFromPages(pages: readonly { slug: string; content: string }[]): string {
+  const infos = pages.flatMap(({ slug, content }) => mocPageInfo(slug, content) ?? []);
+  return buildMOCContent(groupPagesByTag(infos));
 }
 
 /**
@@ -267,21 +279,26 @@ function appendToGroup(groups: Map<string, PageInfo[]>, key: string, page: PageI
 function buildMOCContent(tagGroups: Map<string, PageInfo[]>): string {
   const lines: string[] = ["# Map of Content", ""];
 
-  const sortedTags = [...tagGroups.keys()].sort((a, b) => {
-    // "Uncategorized" always goes last
-    if (a === "Uncategorized") return 1;
-    if (b === "Uncategorized") return -1;
-    return a.localeCompare(b);
-  });
+  const sortedTags = [...tagGroups.keys()].sort(compareMocTags);
 
   for (const tag of sortedTags) {
     const pages = tagGroups.get(tag) ?? [];
     lines.push(`## ${tag}`, "");
-    for (const page of pages.sort((a, b) => a.title.localeCompare(b.title))) {
-      lines.push(`- [[${page.slug}|${page.title}]]`);
-    }
+    for (const page of pages.sort((a, b) => a.title.localeCompare(b.title))) lines.push(mocEntryLine(page));
     lines.push("");
   }
 
   return lines.join("\n");
+}
+
+/** The MOC's tag order: "Uncategorized" always last, the others by `localeCompare`. */
+export function compareMocTags(a: string, b: string): number {
+  if (a === "Uncategorized") return 1;
+  if (b === "Uncategorized") return -1;
+  return a.localeCompare(b);
+}
+
+/** One page's MOC line. */
+export function mocEntryLine(page: Pick<PageInfo, "slug" | "title">): string {
+  return `- [[${page.slug}|${page.title}]]`;
 }

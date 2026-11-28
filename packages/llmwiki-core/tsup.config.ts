@@ -5,7 +5,7 @@
 import { defineConfig } from "tsup";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { coreModuleEntries } from "../../scripts/public-boundary/composition.mjs";
 
 const SRC = path.resolve("../../src");
 
@@ -15,20 +15,11 @@ const SRC = path.resolve("../../src");
  * statements of the CLI's own files (`src/cli/` and the `workflow` command
  * modules in `src/commands/`) so the built entries cannot drift from what it
  * uses. The CLI loads a command's module when that command runs, so starting
- * it does not load every command.
+ * it does not load every command. The public release builder and gate use the
+ * same derivation (`scripts/public-boundary/composition.mjs`), which refuses a
+ * malformed name or one without a `src/<name>.ts` source.
  */
-const COMMANDS_DIR = path.join(SRC, "commands");
-const cliFiles = [
-  ...readdirSync(path.join(SRC, "cli")).map((file) => path.join(SRC, "cli", file)),
-  ...readdirSync(COMMANDS_DIR).filter((file) => /^workflow.*\.ts$/.test(file)).map((file) => path.join(COMMANDS_DIR, file)),
-];
-const moduleNames = new Set(cliFiles.flatMap((file) =>
-  [...readFileSync(file, "utf8").matchAll(/"@atomicstrata\/llmwiki-core\/modules\/([^"]+)"/g)]
-    .map((match) => match[1])));
-
-const moduleEntries = Object.fromEntries(
-  [...moduleNames].map((name) => [`modules/${name}`, path.join(SRC, `${name}.ts`)]),
-);
+const moduleEntries = coreModuleEntries(path.resolve(SRC, ".."));
 
 /** Entry points with a public type surface; these get declarations. */
 const typedEntries = {

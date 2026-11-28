@@ -17,8 +17,15 @@
  * When nothing changed since the persisted state, `CompileResult.pages` is
  * empty and the returned delta is empty too — the "unchanged ⇒ empty delta"
  * contract the W5 test pins.
+ *
+ * A project whose segmented compile state is the authority compiles through
+ * the bounded batch body, whose result lists no pages (and whose delta would
+ * hold the whole corpus in memory), so `compileDelta` refuses there BEFORE
+ * compiling (`compile_batch_unsupported_option`); page the run's report instead.
  */
 
+import { compileStateSegmented } from "../cstate/records.js";
+import { BatchCompileError } from "./batch/contracts.js";
 import { compileAndReport } from "./index.js";
 import { collectExportPages } from "../export/collect.js";
 import type { ExportPage } from "../export/types.js";
@@ -75,6 +82,9 @@ export async function compileDelta(
   root: string,
   options: CompileDeltaOptions = {},
 ): Promise<CompileDeltaResult> {
+  if (await compileStateSegmented(root)) {
+    throw new BatchCompileError("compile_batch_unsupported_option", "compileDelta is not available on a segmented project; run compile() and page compileReport(runId) instead");
+  }
   const result = await compileAndReport(root, options);
   const changedSlugSet = new Set(result.pages);
 

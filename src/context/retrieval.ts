@@ -30,7 +30,7 @@ import {
   type ChunkHitV3,
   type EmbeddingLoadOutcome,
 } from "../utils/embeddings-load.js";
-import type { EmbeddingStoreV3 } from "../utils/embeddings-store.js";
+import type { SearchableEmbeddingStore } from "../utils/embeddings-load.js";
 import type { LivePageReads } from "../utils/page-registry.js";
 import { loadProfile } from "../profile/load.js";
 import type { LoadedProfile } from "../profile/types.js";
@@ -92,7 +92,7 @@ export interface LazyContextLoads {
 
 /** The three calls one retrieval makes, in the order the shared body makes them. */
 interface SemanticSteps extends LazyContextLoads {
-  chunks(store: EmbeddingStoreV3, k: number, profile: LoadedProfile): ReturnType<typeof findRelevantChunksV3>;
+  chunks(store: SearchableEmbeddingStore, k: number, profile: LoadedProfile): ReturnType<typeof findRelevantChunksV3>;
 }
 
 /**

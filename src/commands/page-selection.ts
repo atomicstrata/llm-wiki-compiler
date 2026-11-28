@@ -61,6 +61,7 @@ export async function selectPages(
   const userMessage = `Wiki Index:\n${indexContent}\n\nQuestion: ${question}`;
 
   const rawResult = await callClaude({
+    purpose: "query.select-pages",
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }],
     tools: [PAGE_SELECTION_TOOL],

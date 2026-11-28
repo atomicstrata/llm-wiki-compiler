@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
+import { childGuardEnv, executingRuntime, inheritedRuntimeOptions, preloadFlag, runtimeOptionsVariable } from "./fixtures/child-guard-bootstrap.js";
 import { installFakeCodex, type FakeCodex } from "./fixtures/fake-codex.js";
 import { CLI, expectCLIFailure, expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 import { spawnCaptured } from "./fixtures/spawn-captured.js";
@@ -21,6 +22,8 @@ const aimock = useAimockLifecycle("codex-agent-cli");
 const fakes: FakeCodex[] = [];
 const tempRoots: string[] = [];
 const EMBEDDING_PRELOAD = path.resolve("test/fixtures/mock-embeddings.mjs");
+/** `runCLI` spawns process.execPath, so the CLI child (which must load the embedding mock) runs under this runtime. */
+const CLI_RUNTIME = executingRuntime();
 
 /** Copy Node with any adjacent runtime libraries needed after relocation. */
 async function copyNodeRuntime(runtime: string): Promise<string> {
@@ -46,11 +49,17 @@ async function fakeCodex(options: Parameters<typeof installFakeCodex>[0] = {}): 
   return fake;
 }
 
-/** Environment for Codex chat plus an explicit keyless embedding backend. */
+/**
+ * Environment for Codex chat plus an explicit keyless embedding backend.
+ * The embedding mock is preloaded through the CLI child's OWN runtime variable (`BUN_OPTIONS`
+ * under Bun, `NODE_OPTIONS` under Node), added after that variable's inherited preloads, never
+ * in place of them. The other runtime's inherited variable is left as it is, so genuine Node
+ * descendants keep their Node transport.
+ */
 function codexEnv(fake: FakeCodex): NodeJS.ProcessEnv {
   return {
     PATH: `${fake.binDir}${path.delimiter}${process.env.PATH ?? ""}`,
-    NODE_OPTIONS: `--import=${EMBEDDING_PRELOAD}`,
+    [runtimeOptionsVariable(CLI_RUNTIME)]: inheritedRuntimeOptions(CLI_RUNTIME, preloadFlag(CLI_RUNTIME, EMBEDDING_PRELOAD)),
     LLMWIKI_PROVIDER: "codex-agent",
     LLMWIKI_EMBEDDING_PROVIDER: "ollama",
     OLLAMA_HOST: "http://127.0.0.1:1/v1",
@@ -118,6 +127,7 @@ describe("codex-agent through the real llmwiki CLI", () => {
     for (const call of calls) {
       expect(call.env.OPENAI_API_KEY).toBeUndefined();
       expect(call.env.NODE_OPTIONS).toBeUndefined();
+      expect(call.env.BUN_OPTIONS).toBeUndefined();
       await expect(access(call.cwd)).rejects.toThrow();
     }
   }, 30_000);
@@ -169,7 +179,14 @@ describe("codex-agent through the real llmwiki CLI", () => {
       await writeFile(path.join(runtime, "codex"), `#!/bin/sh\nprintf ran > '${marker}'\nexit 9\n`, { mode: 0o755 });
       const result = await spawnCaptured(copiedNode, [CLI, "compile", "--provider", "codex-agent"], {
         cwd,
-        env: { PATH: emptyPath, LLMWIKI_EMBEDDING_PROVIDER: "ollama" },
+        // Minimal on purpose; a configured run's child guard and the caller's TMPDIR (so the CLI's temp
+        // roots stay where the runner put them, not os.tmpdir()'s /tmp fallback) are the only additions;
+        // PATH still excludes Codex. The copy is a byte copy of process.execPath, so it runs under this
+        // process's runtime.
+        env: {
+          PATH: emptyPath, LLMWIKI_EMBEDDING_PROVIDER: "ollama", ...childGuardEnv(executingRuntime()),
+          ...(process.env.TMPDIR === undefined ? {} : { TMPDIR: process.env.TMPDIR }),
+        },
       });
       expect(result.status).not.toBe(0);
       await expect(access(marker)).rejects.toThrow();

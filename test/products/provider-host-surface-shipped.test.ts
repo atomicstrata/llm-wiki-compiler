@@ -31,6 +31,7 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
+import boundary from "../../scripts/public-boundary/manifest.json";
 import { SDK as DIST } from "../fixtures/built-dist.js";
 import { describe, expect, it } from "bun:test";
 
@@ -45,6 +46,9 @@ import { describe, expect, it } from "bun:test";
  */
 const PUBLIC_RUNTIME_EXPORTS: Readonly<Record<string, string>> = {
   ArtifactVerifyUnavailableError: "function",
+  // The host execution API exposes the runner and its stable refusal type.
+  CompilerOperationError: "function",
+  runCompilerOperation: "function",
   // D-ENSURE-CODE (P6.3d): a companion publishes an experiment program with the SAME
   // create-only, durable, confined write the platform uses — the primitive and its two
   // typed refusals are public so the companion never hand-rolls a weaker one.
@@ -177,7 +181,90 @@ const PUBLIC_RUNTIME_EXPORTS: Readonly<Record<string, string>> = {
   scanPreparationInventory: "function",
   scaffoldConfinedDirectories: "function",
   slugify: "function",
+  // Allocated local SDK entry points and their scale errors.
+  ScaleDowngradeError: "function",
+  ScaleGateError: "function",
+  ScaleRefusalError: "function",
+  adoptProjectFormat2: "function",
+  exportToFile: "function",
+  initWiki: "function",
+  openDiskScopedProject: "function",
+  openFederation: "function",
+  openOriginalsProject: "function",
+  openProject: "function",
+  openTieredProject: "function",
+  registerProject: "function",
 };
+
+/** Allocated portable client functions by shipped entry. */
+const PORTABLE_RUNTIME_EXPORTS = {
+  "dist/index.js": {
+    openProject: "function",
+    registerProject: "function",
+  },
+  "packages/llmwiki-core/dist/index.js": {
+    openPagedProject: "function",
+    openProject: "function",
+    registerProject: "function",
+  },
+  "packages/llmwiki-core/dist/compiler-cli.js": {
+    openCommandSession: "function",
+    pagedSurface: "function",
+    portableSurface: "function",
+    projectApplyCommand: "function",
+    projectApprovalShowCommand: "function",
+    projectApproveCommand: "function",
+    projectCandidatesListCommand: "function",
+    projectCandidatesShowCommand: "function",
+    projectCapabilitiesCommand: "function",
+    projectDeferredCommand: "function",
+    projectExportCommand: "function",
+    projectFederationApplyCommand: "function",
+    projectFederationApproveCommand: "function",
+    projectFederationGroupCommand: "function",
+    projectFederationLinksCommand: "function",
+    projectFederationProposeCommand: "function",
+    projectFederationQualityCommand: "function",
+    projectFederationQueueCommand: "function",
+    projectFederationReadCommand: "function",
+    projectFederationReviewCommand: "function",
+    projectFederationSearchCommand: "function",
+    projectFormatAdoptCommand: "function",
+    projectOriginalsAddCommand: "function",
+    projectOriginalsExportCommand: "function",
+    projectOriginalsReadCommand: "function",
+    projectOriginalsStatCommand: "function",
+    projectPagesListCommand: "function",
+    projectPagesReadCommand: "function",
+    projectProposeCommand: "function",
+    projectRegisterCommand: "function",
+    projectResolveCommand: "function",
+    projectScaleCapabilitiesCommand: "function",
+    projectScaleOpenCommand: "function",
+    projectScalePagesCommand: "function",
+    projectScaleSearchCommand: "function",
+    projectScopedApplyCommand: "function",
+    projectScopedApproveCommand: "function",
+    projectScopedCandidatesListCommand: "function",
+    projectScopedCandidatesShowCommand: "function",
+    projectScopedCapabilitiesCommand: "function",
+    projectScopedCoverageCommand: "function",
+    projectScopedProposeCommand: "function",
+    projectScopedStatusCommand: "function",
+    projectSearchCommand: "function",
+    projectSourceAddCommand: "function",
+    projectStatusCommand: "function",
+    projectTicketIssueCommand: "function",
+    projectTiersApplyCommand: "function",
+    projectTiersApproveCommand: "function",
+    projectTiersPromoteCommand: "function",
+    projectTiersReviewCommand: "function",
+    projectTiersSearchCommand: "function",
+    projectTiersTriageCommand: "function",
+    projectViewCommand: "function",
+    startPortableViewer: "function",
+  },
+} as const;
 
 /** The built artifact's exports, as a name-to-kind table. */
 async function shippedExports(): Promise<Record<string, string>> {
@@ -208,16 +295,19 @@ describe("the distributed artifact's public surface", () => {
     expect(backendish).toEqual([]);
   });
 
-  it("ships NO portable-project prototype entry point from any built entry", async () => {
-    // The registered-project gate ships; registering, opening, hosting and paging a
-    // portable project do not. The pinned table refuses additions to `llmwiki`; this
-    // also covers the core package's root and compiler-cli entries, which the table
-    // does not read.
-    const entries = ["dist/index.js", "packages/llmwiki-core/dist/index.js", "packages/llmwiki-core/dist/compiler-cli.js"];
-    const withheld = /^(openProject|registerProject|startSimulatedHost|openPagedProject|openCommandSession|startPortableViewer|portableSurface|pagedSurface|project[A-Z]\w*Command)$/u;
-    for (const entry of entries) {
+  it("pins portable client exports by entry and excludes internal runtime symbols", async () => {
+    // Retain the original name-family guard so a new portable command requires
+    // an explicit allowlist decision. The boundary manifest supplies the internal exclusions.
+    const portable = /^(openProject|registerProject|startSimulatedHost|openPagedProject|openCommandSession|startPortableViewer|portableSurface|pagedSurface|project[A-Z]\w*Command)$/u;
+    for (const [entry, expected] of Object.entries(PORTABLE_RUNTIME_EXPORTS)) {
       const shipped = await import(path.resolve(entry)) as Record<string, unknown>;
-      expect([entry, Object.keys(shipped).filter((name) => withheld.test(name))]).toEqual([entry, []]);
+      const names = Object.keys(shipped);
+      const actual = Object.fromEntries(
+        names.filter((name) => portable.test(name)).map((name) => [name, typeof shipped[name]]),
+      );
+      expect([entry, actual]).toEqual([entry, expected]);
+      expect([entry, names.filter((name) => boundary.internal.forbiddenSymbols.includes(name))])
+        .toEqual([entry, []]);
     }
   });
 });

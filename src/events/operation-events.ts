@@ -67,10 +67,11 @@ export async function appendOperationEventLockedFrom(
   content: OperationEventContent,
   binding: OperationBinding,
 ): Promise<OperationEventAppend> {
-  const { events } = await readEventsFrom(sources); // throws on corrupt/too-new/symlink
-  const existing = events.filter(
-    (event) => event.operationBinding?.mutationId === binding.mutationId,
-  );
+  const segmented = await sources.segmented?.();
+  // local-indexed: the binding index (bounded); otherwise the incumbent whole read.
+  const existing = segmented
+    ? await segmented.findByMutation(binding.mutationId)
+    : (await readEventsFrom(sources)).events.filter((event) => event.operationBinding?.mutationId === binding.mutationId);
   if (existing.length > 1) return { status: "conflict", detail: "duplicate operation event for mutation" };
   if (existing.length === 1) {
     return eventMatches(existing[0]!, content, binding)

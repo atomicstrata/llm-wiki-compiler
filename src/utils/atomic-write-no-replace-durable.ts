@@ -6,10 +6,11 @@
  */
 
 import { link, lstat, open, unlink } from "fs/promises";
-import { constants as fsConstants, type Stats } from "node:fs";
+import { constants as fsConstants, type BigIntStats, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { assertCurrentParent, fsyncDirectoryChain, type ParentBinding } from "./atomic-write-durability.js";
+import type { DirectorySyncScope } from "./directory-sync-scope.js";
 
 /** One target-specific durable temp makes every crash state directly addressable. */
 const DURABLE_TEMP_SUFFIX = ".tmp";
@@ -41,6 +42,8 @@ export interface DurableNoReplaceRecoveryOptions {
   mode?: number;
   afterCommit?: () => Promise<void>;
   beforeDirectorySync?: (dir: string) => Promise<void>;
+  /** Opt-in batch memo for ancestor directory syncs (leaf-parent syncs are never skipped). */
+  directorySyncScope?: DirectorySyncScope;
 }
 
 /**
@@ -179,7 +182,7 @@ export async function linkTempNoReplace(tmpPath: string, filePath: string): Prom
 export async function removeCommittedTemp(
   tmpPath: string,
   binding: ParentBinding | undefined,
-  expected: Stats,
+  expected: Stats | BigIntStats,
 ): Promise<void> {
   try {
     await assertTempPathBound(tmpPath, binding, expected);
@@ -193,11 +196,15 @@ export async function removeCommittedTemp(
 export async function assertTempPathBound(
   tmpPath: string,
   binding: ParentBinding | undefined,
-  expected: Stats,
+  expected: Stats | BigIntStats,
 ): Promise<void> {
+  if ((typeof expected.dev === "number" && !Number.isSafeInteger(expected.dev)) ||
+      (typeof expected.ino === "number" && !Number.isSafeInteger(expected.ino))) {
+    throw new Error(`temporary write handle has an imprecise identity: ${tmpPath}`);
+  }
   if (binding !== undefined) await assertCurrentParent(binding);
-  const pathStat = await lstat(tmpPath);
-  if (pathStat.dev !== expected.dev || pathStat.ino !== expected.ino) {
+  const pathStat = await lstat(tmpPath, { bigint: true });
+  if (pathStat.dev !== BigInt(expected.dev) || pathStat.ino !== BigInt(expected.ino)) {
     throw new Error(`temporary write handle is not bound to the confined path: ${tmpPath}`);
   }
 }
@@ -318,13 +325,14 @@ async function promoteDurableTemp(
   options: DurableNoReplaceRecoveryOptions | undefined,
   binding: ParentBinding | undefined,
 ): Promise<PublishedDurable> {
-  const verified = await verifyAndSyncDurableTemp(tmpPath, content, options?.mode, binding);
+  const { mode, afterCommit, beforeDirectorySync, directorySyncScope } = options ?? {};
+  const verified = await verifyAndSyncDurableTemp(tmpPath, content, mode, binding);
   let published = false;
   try {
     await linkPromotedTemp(tmpPath, filePath, binding, verified.stat);
-    await fsyncDirectoryChain(path.dirname(filePath), binding, options?.beforeDirectorySync);
+    await fsyncDirectoryChain(path.dirname(filePath), binding, beforeDirectorySync, directorySyncScope);
     let hookError: unknown, destinationError: unknown;
-    try { await options?.afterCommit?.(); } catch (error) { hookError = error; }
+    try { await afterCommit?.(); } catch (error) { hookError = error; }
     try { await assertPublishedDestination(filePath, verified.handle, binding); } catch (error) { destinationError = error; }
     await removeCommittedTemp(tmpPath, binding, verified.stat);
     if (destinationError !== undefined) throw destinationError;

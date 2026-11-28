@@ -15,6 +15,7 @@
  * adapter receives.
  */
 
+import { segmentedOperationCatalogFor } from "../../history/operation-catalog-read.js";
 import {
   appendCatalogRecordLocked, createCatalogRecord, findCatalogRecordByMutation, readCatalogStore,
   type CatalogAppendResult, type CatalogRecord, type CatalogStoreRead,
@@ -33,6 +34,12 @@ export interface CatalogAdapterStores {
   readPayload(workspaceId: string, bundleId: BundleId, payloadRef: string): Promise<PayloadRead>;
   /** The workspace's catalog. */
   readCatalog(workspaceId: string): Promise<CatalogStoreRead>;
+  /**
+   * OPTIONAL: on a `local-indexed` project, the record appended for one
+   * mutation through the segmented catalog's index (`{ record }`, `record`
+   * absent when none), or `null` elsewhere (then `readCatalog` is used).
+   */
+  findByMutation?(workspaceId: string, mutationId: string): Promise<{ record?: CatalogRecord } | null>;
   /** Append one record through the whole-file-rewrite seam; the caller holds the project lock. */
   append(workspaceId: string, record: CatalogRecord): Promise<CatalogAppendResult>;
 }
@@ -42,6 +49,12 @@ function diskCatalogAdapterStores(ctx: Pick<AdapterContext, "root">): CatalogAda
   return {
     readPayload: (workspaceId, bundleId, payloadRef) => readBundlePayload(ctx.root, workspaceId, bundleId, payloadRef),
     readCatalog: (workspaceId) => readCatalogStore(ctx.root, workspaceId),
+    findByMutation: async (workspaceId, mutationId) => {
+      const segmented = await segmentedOperationCatalogFor(ctx.root, workspaceId);
+      if (segmented === null) return null;
+      const record = await segmented.findByMutation(mutationId);
+      return record === undefined ? {} : { record };
+    },
     append: (workspaceId, record) => appendCatalogRecordLocked(ctx.root, workspaceId, record),
   };
 }
@@ -53,10 +66,18 @@ function readPayload(stores: CatalogAdapterStores, ctx: AdapterContext<CatalogOp
 
 /** Observe catalog state by the deterministic mutation identity. */
 async function observeCatalog(stores: CatalogAdapterStores, ctx: AdapterContext<CatalogOperationMutation>): Promise<OperationObservation> {
-  const read = await stores.readCatalog(ctx.manifest.workspaceId);
-  if (read.status === "unavailable" || read.status === "invalid") return { outcome: "unavailable", detail: "catalog is unreadable" };
-  const records = read.status === "ok" ? read.records : [];
-  const existing = findCatalogRecordByMutation(records, ctx.auditBinding.mutationId);
+  let existing: CatalogRecord | undefined;
+  try {
+    const indexed = await stores.findByMutation?.(ctx.manifest.workspaceId, ctx.auditBinding.mutationId);
+    if (indexed) existing = indexed.record;
+    else {
+      const read = await stores.readCatalog(ctx.manifest.workspaceId);
+      if (read.status === "unavailable" || read.status === "invalid") return { outcome: "unavailable", detail: "catalog is unreadable" };
+      existing = findCatalogRecordByMutation(read.status === "ok" ? read.records : [], ctx.auditBinding.mutationId);
+    }
+  } catch {
+    return { outcome: "unavailable", detail: "catalog is unreadable" };
+  }
   // A catalog record is keyed by mutationId, so its presence proves this run produced it.
   return existing === undefined ? { outcome: "not-applied" } : { outcome: "applied", postStateDigest: ctx.mutation.postcondition.digest, boundToMutation: true };
 }

@@ -18,6 +18,8 @@
  * the page scope exactly once and then run the same private selection.
  */
 
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
+import { isShardedView } from "../vectors/store.js";
 import * as output from "../utils/output.js";
 import { UsageAccountingError } from "../providers/usage.js";
 import {
@@ -47,6 +49,14 @@ import {
 import type { PageId } from "../utils/page-id.js";
 import { selectPages } from "./page-selection.js";
 import type { ChunkCitation, RetrievalDebug } from "../utils/types.js";
+
+/** Refuse stale vector evidence before selection or answer can spend another effect. */
+function refuseStaleWhenStrict(stalePageIds: readonly PageId[]): void {
+  const scope = compilerModelScope();
+  if (scope?.kind === "query" && stalePageIds.length > 0) {
+    scope.refuse(new CompilerOperationError("retrieval_index_outdated"));
+  }
+}
 
 /**
  * Render candidate pages in the bullet format selectPages() consumes, keyed by
@@ -87,6 +97,7 @@ function narrowToScope(
   if (pageScope === undefined || !outcome.store) return outcome;
   const allowed = new Set(pageScope);
   const store = outcome.store;
+  if (isShardedView(store)) return { ...outcome, store: { ...store, scope: allowed } };
   return {
     ...outcome,
     store: {
@@ -168,13 +179,18 @@ async function selectScopedPages(
 
   if (outcome.store) {
     const chunkSelection = await trySelectViaChunks(pages, outcome.store, question, debug, profile, stalePageIds);
+    refuseStaleWhenStrict(stalePageIds);
     if (chunkSelection) return enrich(chunkSelection);
     const candidates = await tryFindRelevantPages(pages, outcome.store, question, profile, options);
     stalePageIds.push(...candidates.stalePageIds);
+    refuseStaleWhenStrict(stalePageIds);
     if (candidates.warning) degradeWarnings.push(candidates.warning);
     if (candidates.hits.length > 0) return enrich(await selectFromCandidates(question, candidates.hits));
   }
 
+  if (compilerModelScope()?.kind === "query") {
+    return enrich({ refs: [], reasoning: "No embedding hits.", chunks: [], warnings: [] });
+  }
   const { refs, reasoning } = await selectFallbackRefsFrom(pages, question, "search", profile, pageScope);
   return enrich({ refs, reasoning, chunks: [], warnings: [] });
 }
@@ -356,7 +372,7 @@ interface ChunkLookup {
  * BM25 reranker consumes (its `title` is the slug — query provenance shows the
  * slug, not the title) and forwards the read's `stalePageIds` so the caller can
  * surface `embedding-entry-stale`. Ordinary provider failures degrade to an empty
- * list; accounting failures propagate before page-level retrieval can spend more.
+ * list; accounting and strict operation failures propagate before page-level retrieval.
  */
 async function tryFindRelevantChunks(
   pages: LivePageReads,
@@ -368,7 +384,7 @@ async function tryFindRelevantChunks(
     const { hits, stalePageIds } = await findRelevantChunksV3From(pages, store, "search", question, CHUNK_TOP_K, profile);
     return { chunks: hits.map((hit) => ({ chunk: toChunkEntry(hit), pageId: hit.pageId, score: hit.score })), stalePageIds };
   } catch (err) {
-    if (err instanceof UsageAccountingError) throw err;
+    if (err instanceof UsageAccountingError || compilerModelScope()?.kind === "query") throw err;
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.dim(`Chunk pre-filter unavailable (${message}); falling back.`));
     return { chunks: [], stalePageIds: [] };

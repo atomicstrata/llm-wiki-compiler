@@ -53,7 +53,8 @@ import { checkEventChainFrom } from "./event-lint.js";
 import { diskEventReadSources, type EventReadSources } from "../events/store-read.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans } from "../storage/legacy-local-reads.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../relations/graph-reads.js";
 import { diskEntityPageReads, type EntityPageReads } from "./lifecycle-read.js";
 import { lifecycleStateSet } from "./lifecycle.js";
 import type { ProfilePack, EntityPage, LifecycleDef } from "./types.js";
@@ -83,7 +84,7 @@ export interface ProfileLintSources {
 export function diskProfileLintSources(root: string): ProfileLintSources {
   return {
     scans: diskLocalEntityScans(root),
-    graph: diskGraphStoreReads(root),
+    graph: diskRelationGraphReads(root),
     pages: diskEntityPageReads(root),
     events: diskEventReadSources(root),
     artifacts: diskArtifactHealthSources(root),

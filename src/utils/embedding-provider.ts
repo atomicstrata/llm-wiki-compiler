@@ -22,6 +22,7 @@
  */
 
 import type { LLMProvider } from "./provider.js";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 import { buildProvider, getActiveProviderName, getProvider } from "./provider.js";
 
 /**
@@ -148,6 +149,8 @@ export function isEmbeddingProviderExplicit(): boolean {
  * wrong diagnosis of what is really a misspelled variable.
  */
 export function getActiveEmbeddingProviderName(): string {
+  const host = compilerModelScope()?.models.embedding;
+  if (host) return host.provider;
   const explicit = explicitEmbeddingProviderName();
   if (explicit === undefined) return getActiveProviderName();
   const problem = capabilityProblem(explicit);
@@ -249,6 +252,8 @@ export function findEmbeddingProviderProblem(): EmbeddingProviderProblem | null 
  * from the SDK and from tests without going through a CLI entry point.
  */
 export function getEmbeddingProvider(): LLMProvider {
+  const host = compilerModelScope();
+  if (host) return host.embeddingProvider();
   if (!isEmbeddingProviderExplicit()) return getProvider();
   const problem = findEmbeddingProviderProblem();
   if (problem) throw new Error(problem.message);

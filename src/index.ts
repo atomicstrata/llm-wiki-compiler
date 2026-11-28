@@ -34,6 +34,11 @@ export {
 } from "@atomicstrata/llmwiki-core";
 
 export { createWiki } from "./sdk/wiki.js";
+export { CompilerOperationError, runCompilerOperation } from "@atomicstrata/llmwiki-core/compiler-sdk";
+export type {
+  CompilerChatCall, CompilerChatPurpose, CompilerEmbeddingCall, CompilerModelIdentity,
+  CompilerOperationContent, CompilerOperationModels, CompilerOperationRequest, CompilerQueryGeneration,
+} from "@atomicstrata/llmwiki-core/compiler-sdk";
 export { startViewer, type StartViewerOptions } from "@atomicstrata/llmwiki-core";
 export type {
   ViewerDeps, LiveStageProjectionProvider, LiveStageProjectionResult,
@@ -216,3 +221,21 @@ export type { HostModelBrokerV1, HostModelQuoteObservationV1, HostModelQuoteRequ
 export { confinedFetch, confinedFetchRequest } from "@atomicstrata/llmwiki-core";
 export type { FetchLimits, ConfinedFetchSeams, ConfinedFetchResult, ConfinedFetchRequest, ConfinedFetchMethod } from "@atomicstrata/llmwiki-core";
 export { scaffoldConfinedDirectories, ensureConfinedDirectory, type ScaffoldDirectoriesResultV1 } from "@atomicstrata/llmwiki-core";
+
+// Single-node scaling additions (expected scale, local catalog, batch compile, portable project path).
+export { initWiki } from "./sdk/wiki.js";
+export { ScaleRefusalError, ScaleGateError, ScaleDowngradeError } from "@atomicstrata/llmwiki-core";
+export type { InitWikiOptions, WikiScaleSurface, SdkScaleSetInput, InitProjectResult, ScaleReport, ScaleReadiness, ScaleRequest, ScaleRecordV1, ScalePlan, ScaleRefusalCode, RequestedScaleV1, ActiveArchitectureV1, PreparePendingV1, UnavailablePendingV1, StepRecordV1, LocalArchitecture, PlannedArchitecture, EnvelopeBound, MissingBackend, PreparationStepName, StepStatus, EstimateBasis, ScaleGateBlock, ScaleRecord, ScaleRecordV2, ScalePlanV2, LocalArchitectureV2, PlannedArchitectureV2, MissingBackendV2, IneligibleReason, StepNameV2, StepRecordV2, ActiveArchitectureV2, PreparePendingV2, UnavailablePendingV2, DowngradePendingV2, DowngradeTarget, SdkScaleDowngradeInput, WikiScaleDowngradeSurface, WikiScaleArchivesSurface, ScaleTransitionPreviewV1, ScaleDowngradePreviewV1, DowngradeApplyResultV1, DowngradePlanV1, ScaleArchiveV1, ScaleDowngradeCode, DowngradeBlockerV1, DowngradeNoticeCode, WikiCatalogSurface, CatalogStatusV1, CatalogSyncReportV1, IndexedVerificationV1, StoreCheckV1, CatalogListingNote, CatalogCounts, IndexedStorageV1, StorageInventoryV1, GcApplyV1, GcDeletedV1, GcPlanStoreV1, GcPlanV1, GcPreviewV1, IndexedGcErrorCode, IndexedPinsV1, IndexedBackupReceiptV1, IndexedRestoreReceiptV1, IndexedRestoreErrorCode, RunRetirePreviewV1, RunRetirePlanV1, RunRetirePlanCandidateV1, RunRetirePlanCleanupV1, RunRetireApplyV1, RunRetireDoneV1, RunRetiredV1, IndexedRunsErrorCode, RunEntryV1, RunClassV1 } from "@atomicstrata/llmwiki-core";
+export { openProject, registerProject } from "@atomicstrata/llmwiki-core";
+export type { OpenProjectOptions, ProjectRegistration, ProjectSelector, TransportCredential, HostModel, ProviderOverride, ProjectSession, WikiProject, CandidateView, ApprovalView, ExportItem, PublicationOutcome, ProposalOutcome, ApprovalOutcome, PublicationStatus, AdapterCapabilitiesV1 } from "@atomicstrata/llmwiki-core";
+export type { CompileScopeV2, ScopedCoverageV2, ScopedProjectV2, ScopedProposeRequestV2 } from "@atomicstrata/llmwiki-core";
+export { adoptProjectFormat2, openDiskScopedProject } from "@atomicstrata/llmwiki-core";
+export type { AdoptionResult, DiskCompileScopeV2, DiskScopedCoverageV2, DiskScopedProjectV2, DiskScopedSessionV2, OpenDiskScopedProjectOptions } from "@atomicstrata/llmwiki-core";
+export { exportToFile, openOriginalsProject } from "@atomicstrata/llmwiki-core";
+export type { OpenOriginalsOptions, OriginalsClientV2, OriginalStatV2, AddStagedOutcomeV2 } from "@atomicstrata/llmwiki-core";
+export { openTieredProject } from "@atomicstrata/llmwiki-core";
+export type { OpenTieredOptions, TieredSessionV2, TieredResultsV2, TriageResultV2, PromotedV2, RawHitV2, ReviewedHitV2 } from "@atomicstrata/llmwiki-core";
+export { openFederation } from "@atomicstrata/llmwiki-core";
+export type { FederationSessionV2, OpenFederationOptions, FederatedResultsV2, OverviewProposeRequestV2, QueuePageV2, QualityResultV2, GroupEntryV2, GroupResultV2 } from "@atomicstrata/llmwiki-core";
+export type { CustodyHandleV2, DetachedStepV2, DetachedStatusV2, GenerationRecordV2, BacklogPlanV2 } from "@atomicstrata/llmwiki-core";
+export type { BatchCompileSummaryV1, BatchCountersV1, BatchPhase } from "@atomicstrata/llmwiki-core";

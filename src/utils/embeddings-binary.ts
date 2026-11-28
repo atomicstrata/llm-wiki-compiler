@@ -77,19 +77,34 @@ export function encodeBinaryStore(store: EmbeddingStore | EmbeddingStoreV3): Buf
   const records = [...store.entries, ...(store.chunks ?? [])];
   const metadata = { ...store, entries: store.entries.map(withoutVector),
     ...(store.chunks === undefined ? {} : { chunks: store.chunks.map(withoutVector) }) };
-  const text = serializeEmbeddingJson(metadata, MAX_BINARY_METADATA_BYTES);
-  if (text === null) throw new RangeError("binary metadata exceeds 256 MiB; prune entries");
-  const metadataBytes = Buffer.byteLength(text);
-  const size = HEADER_BYTES + metadataBytes + records.length * store.dimensions * FLOAT_BYTES;
+  const prefix = encodeBinaryPrefix(metadata);
+  if (prefix === null) throw new RangeError("binary metadata exceeds 256 MiB; prune entries");
+  const size = prefix.byteLength + records.length * store.dimensions * FLOAT_BYTES;
   if (!Number.isSafeInteger(size) || size > MAX_BINARY_STORE_BYTES) {
     throw new RangeError("binary store exceeds 512 MiB; prune entries or use a lower-dimension model");
   }
   const bytes = Buffer.alloc(size);
-  bytes.write(MAGIC);
-  bytes.writeUInt32LE(metadataBytes, 8);
-  bytes.write(text, HEADER_BYTES, metadataBytes, "utf8");
-  writeVectors(bytes, HEADER_BYTES + metadataBytes, records);
+  prefix.copy(bytes);
+  writeVectors(bytes, prefix.byteLength, records);
   return bytes;
+}
+
+/**
+ * The container's leading bytes (magic, metadata length, then the metadata:
+ * the store with every record's `vector` removed). The little-endian float32
+ * payload follows them, record by record (entries, then chunks). A caller
+ * that already holds float32 bytes (a scale-down export) streams the payload
+ * itself after this prefix. Null when the metadata exceeds its limit.
+ */
+export function encodeBinaryPrefix(metadata: Record<string, unknown>): Buffer | null {
+  const text = serializeEmbeddingJson(metadata, MAX_BINARY_METADATA_BYTES);
+  if (text === null) return null;
+  const metadataBytes = Buffer.byteLength(text);
+  const prefix = Buffer.alloc(HEADER_BYTES + metadataBytes);
+  prefix.write(MAGIC);
+  prefix.writeUInt32LE(metadataBytes, 8);
+  prefix.write(text, HEADER_BYTES, metadataBytes, "utf8");
+  return prefix;
 }
 
 /** Explicit endian writes also support arbitrary metadata-byte alignment. */

@@ -29,7 +29,7 @@
  */
 
 import { existsSync, type Dirent, type Stats } from "node:fs";
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { lstat, opendir, readFile, readdir } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -46,6 +46,7 @@ import type {
   LegacyLocalReads,
   LocalDirectory,
   LocalEntityDirectory,
+  LocalEntry,
   LocalEntryKind,
 } from "./legacy-local-reads.js";
 
@@ -152,6 +153,68 @@ function diskDirectory(canonicalDir: string): LocalDirectory {
       // order). Names in one directory are unique, so no tie case.
       return entries.map((entry) => ({ name: entry.name, kind: entryKind(entry) }))
         .sort((a, b) => (a.name < b.name ? -1 : 1));
+    },
+  };
+}
+
+/** A verified real directory whose listings STREAM: one entry at a time, never a whole directory array. */
+export interface StreamingLocalDirectory {
+  /** The entries of the directory itself (`""`) or of a `/`-joined path beneath it, in the backend's listing order. */
+  entries(relative: string): AsyncGenerator<LocalEntry>;
+}
+
+/**
+ * Where a listing of `relative` beneath an anchored directory would read, or a
+ * refusal BEFORE anything outside is touched: `relative` is `""` or a relative
+ * path with no `..` segment, and the joined location is the anchor or lies
+ * strictly beneath it.
+ *
+ * @throws Error when `relative` is absolute, names a parent, or leaves the anchor.
+ */
+function anchoredListingLocation(canonicalDir: string, relDir: string, relative: string): string {
+  const hasParentSegment = relative.split(/[\\/]/u).includes("..");
+  const location = path.join(canonicalDir, relative);
+  const isAnchored = location === canonicalDir || location.startsWith(canonicalDir + path.sep);
+  if (path.isAbsolute(relative) || hasParentSegment || !isAnchored) throw new Error(`${relDir}: "${relative}" is not a path beneath the listed directory`);
+  return location;
+}
+
+/**
+ * Require `location` to be, right now, a real directory at its own canonical
+ * path: not a link, and not reached through one. The anchor itself is checked
+ * the same way, so a base directory replaced by a link since it was verified
+ * is refused. This is a check immediately before the directory is opened; it
+ * is not atomic with the listing that follows.
+ *
+ * @throws Error when the location is a link, is not a directory, or resolves elsewhere.
+ */
+async function assertRealDirectoryNow(location: string, label: string): Promise<void> {
+  const stats = await lstat(location);
+  const isRealDirectory = !stats.isSymbolicLink() && stats.isDirectory() && (await safeRealpath(location)) === location;
+  if (!isRealDirectory) throw new Error(`${label} is no longer a real directory inside the project`);
+}
+
+/**
+ * The streaming listing of `relDir` under `root`, verified exactly as
+ * `realDirectory` verifies it (a real directory inside the root), or `null`
+ * when it is absent. Each listing holds one directory handle and yields one
+ * entry at a time; the handle closes when the iteration ends or stops.
+ *
+ * Every listing is confined to the verified directory: an absolute path, a
+ * `..` segment or any path that leaves it is refused before a directory is
+ * opened, and the directory listed (the anchor included) is re-checked to be
+ * a real directory at its own path immediately before it is opened. That
+ * re-check narrows, and does not close, the window in which a directory can be
+ * swapped: no race-free traversal is claimed.
+ */
+export async function diskStreamingDirectory(root: string, relDir: string): Promise<StreamingLocalDirectory | null> {
+  const canonicalDir = await resolveRealDir(root, relDir);
+  if (canonicalDir === null) return null;
+  return {
+    entries: async function* (relative) {
+      const location = anchoredListingLocation(canonicalDir, relDir, relative);
+      await assertRealDirectoryNow(location, relative === "" ? relDir : `${relDir}/${relative}`);
+      for await (const entry of await opendir(location)) yield { name: entry.name, kind: entryKind(entry) };
     },
   };
 }

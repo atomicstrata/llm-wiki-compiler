@@ -73,6 +73,41 @@ the affected source is extracted again when it participates in compilation.
 This does not rename existing pages or migrate their ownership and review
 records. Existing duplicate pages need a separately reviewed recovery.
 
+## Batch compile on an indexed project
+
+On a project whose segmented compile state is ready (see [Scale and catalog](/cli/scale#batch-compile-on-an-indexed-project)), `llmwiki compile` runs as a resumable batch run that works through the project in bounded, checkpointed batches under explicit limits; a project that exceeds a limit is refused rather than processed unbounded. On every other project these flags are refused and compile behaves as described on the rest of this page.
+
+| Flag | Description |
+|------|-------------|
+| `--no-embeddings` | Skip the semantic-search embeddings refresh for this compile. A batch compile requires it: the refresh is not bounded, so a batch run refuses to start without it. |
+| `--batch-size <n>` | Sources (or pages) per resumable checkpoint. Default 100. |
+| `--restart` | Supersede the active batch run and start over from the current inputs. |
+| `--report <runId>` | Print one page of a batch run's per-source and per-page report as JSON. Read-only; needs no provider credentials. |
+| `--cursor <cursor>` | With `--report`: continue after this cursor. |
+
+```bash
+llmwiki compile --no-embeddings
+llmwiki compile --report <runId>
+```
+
+A batch run prints a run id. Its summary reports counts only (`compiled`, `skipped`, `deleted`, and at most one line naming how many extractions and pages failed); read the individual outcomes with `--report`.
+
+A batch compile refuses, before it changes anything:
+
+- `--review`, or a project with a review policy that is not off;
+- `--no-pages-limit`;
+- pending review candidates (approve or reject them first);
+- an embeddings refresh (pass `--no-embeddings`);
+- a custom profile without the typed entity catalog.
+
+These refusals are answered before any provider credential is asked for, so you see the option's own message rather than a missing-key error. On an ordinary project `--no-pages-limit` works exactly as described above.
+
+A run resumes only under the same prompt modifiers, schema, profile, provider, model and review policy it started with. If one of them changed, re-run with `--restart`.
+
+### Not in this release
+
+`llmwiki compile` has no `--dry-run` and no `--rebuild-source` option in this release, on any project. A planned-compile preview and a forced re-extraction of selected sources are deferred work, not shipped behaviour. To re-extract a source today, change it or use `llmwiki refresh --stale`.
+
 ## Nested source folders
 
 By default, compile reads only top-level `.md` files in `sources/`. To compile

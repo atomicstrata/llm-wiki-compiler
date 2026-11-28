@@ -2,6 +2,16 @@
  * @file test/fixtures/template-publish-distribution.ts
  * @description Builds production-signed static template distributions for the
  * frozen Slice A CLI oracle without introducing an alternate signing protocol.
+ *
+ * The verifier child always loads this fixture's stricter local execution guard
+ * (no network, child processes, worker threads or filesystem writes; any caught
+ * attempt still forces exit 86). When a qualification run configures the child
+ * guard bootstrap (`child-guard-bootstrap.ts`), the run's offline guard is loaded
+ * first through its explicit configuration and the local guard last, so the local
+ * guard's denials stay in force. The preload variable follows the runtime the
+ * verifier child really executes (`process.execPath`): `BUN_OPTIONS` under Bun,
+ * `NODE_OPTIONS` under Node. Ambient preload values of either runtime are never
+ * inherited, and unconfigured runs load only the local guard, as before.
  */
 import { createHash } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -10,6 +20,7 @@ import path from "node:path";
 import { expect } from "bun:test";
 import { parseTemplateCoordinate } from "../../src/profile/templates/signing/protocol.js";
 import type { SignedPackageEnvelope, SignedTapIndex } from "../../src/profile/templates/signing/types.js";
+import { childGuardEnv, executingRuntime, preloadFlag, runtimeOptionsVariable } from "./child-guard-bootstrap.js";
 import { signedIndex, signedPackage, TAP_KEY } from "./template-signing.js";
 import { CLI, CLI_RUNTIME_FLAGS } from "./run-cli.js";
 import { spawnCaptured } from "./spawn-captured.js";
@@ -139,11 +150,22 @@ function currentIndex(envelope: SignedPackageEnvelope): SignedTapIndex {
   });
 }
 
-function offlineEnvironment(root: string): NodeJS.ProcessEnv {
-  // Bun ignores NODE_OPTIONS; BUN_OPTIONS preloads the guard before the CLI.
-  const guard = `--preload=${path.join(root, "execution-guard.mjs")}`;
+/**
+ * The verifier child's environment: private roots, unroutable proxies and the guards.
+ *
+ * The child is `process.execPath`, so its runtime is this process's runtime. Bun ignores
+ * NODE_OPTIONS; BUN_OPTIONS preloads the guards before the CLI (NODE_OPTIONS under Node).
+ * That variable is built here, never inherited: a configured run's explicit offline guard
+ * first, then the local execution guard. Invalid or partial child guard configuration
+ * throws before any child is launched.
+ */
+export function offlineEnvironment(root: string): NodeJS.ProcessEnv {
+  const runtime = executingRuntime();
+  const variable = runtimeOptionsVariable(runtime);
+  const guard = preloadFlag(runtime, path.join(root, "execution-guard.mjs"));
+  const outerGuard = childGuardEnv(runtime);
   const environmentRoot = path.join(root, "environment");
-  return {
+  const environment: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: path.join(environmentRoot, "home"),
     APPDATA: path.join(environmentRoot, "config"),
@@ -161,10 +183,14 @@ function offlineEnvironment(root: string): NodeJS.ProcessEnv {
     HTTPS_PROXY: "http://127.0.0.1:1",
     ALL_PROXY: "http://127.0.0.1:1",
     NO_PROXY: "",
-    BUN_OPTIONS: guard,
+    ...outerGuard,
+    [variable]: [outerGuard[variable], guard].filter((flag) => flag !== undefined).join(" "),
     // The runtime's own transpiler cache is not a CLI write; keep it out of the watched tree.
     BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
   };
+  // Ambient preloads of the other runtime are dropped too (deleted, not set to undefined).
+  for (const other of ["NODE_OPTIONS", "BUN_OPTIONS"] as const) if (other !== variable) delete environment[other];
+  return environment;
 }
 
 function writableEnvironmentDirectories(root: string): string[] {

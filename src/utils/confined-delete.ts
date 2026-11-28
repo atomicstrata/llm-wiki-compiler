@@ -9,7 +9,8 @@
  * rather than reappearing after the caller reported success.
  */
 
-import { lstat, realpath, rmdir, unlink } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { lstat, open, realpath, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fsyncDirectoryChain } from "./atomic-write-durability.js";
 import { resolveExpectedReal } from "./confined-read.js";
@@ -58,19 +59,79 @@ export async function isConfinedDirectory(root: string, dir: string): Promise<"c
  * `root`, then persist the removal. The directory is re-confined and proved a real
  * non-symlink directory immediately before the call, because a symlinked directory
  * reads as empty through `readdir` and `rmdir` would then fail — after the caller had
- * already committed earlier steps.
+ * already committed earlier steps. With `expected`, the directory must also still be
+ * that exact (full-width) identity right before the `rmdir`, and its ABSENCE is a
+ * change (refused), not a removal already done; without it, absence stays a no-op.
  */
-export async function rmdirConfinedDurable(root: string, dir: string, expectedParent: string): Promise<void> {
+export async function rmdirConfinedDurable(root: string, dir: string, expectedParent: string, expected?: DirIdentity): Promise<void> {
   const canonicalParent = await resolveExpectedReal(root, expectedParent);
   const parentReal = await realpath(path.dirname(dir)).catch(() => null);
   if (canonicalParent === null || parentReal === null || parentReal !== canonicalParent) {
     throw new Error("confined rmdir parent is not the expected directory");
   }
   const leaf = await lstatLeaf(dir);
+  if (leaf.kind === "absent" && expected !== undefined) throw new Error("confined rmdir target is gone, not the expected directory");
   if (leaf.kind === "absent") return;
   if (leaf.kind !== "present" || !leaf.stats.isDirectory() || leaf.stats.isSymbolicLink()) {
     throw new Error("confined rmdir target is not a real directory");
   }
+  if (expected !== undefined && !(await isDirIdentity(dir, expected))) throw new Error("confined rmdir target is not the expected directory");
   await rmdir(dir);
   await fsyncDirectoryChain(parentReal);
+}
+
+/** A directory's exact full-width identity. */
+export interface DirIdentity { readonly dev: bigint; readonly ino: bigint }
+
+/** Whether `dir` is now a real directory with exactly identity `expected` (never a lossy comparison). */
+async function isDirIdentity(dir: string, expected: DirIdentity): Promise<boolean> {
+  const now = await lstat(dir, { bigint: true }).catch(() => null);
+  return now !== null && now.isDirectory() && now.dev === expected.dev && now.ino === expected.ino;
+}
+
+/** What one identity-bound confined unlink did. */
+export type BoundUnlinkOutcome = "unlinked" | "changed";
+
+/**
+ * Unlink one leaf directly inside `expectedDir` under `root` ONLY when it is
+ * still the exact file the caller inventoried: the parent re-resolves to the
+ * canonical in-root directory at this last seam, and the leaf is a regular,
+ * single-link, non-symlink file for which `matches` (its bigint stat) holds.
+ * Anything else is `changed` and nothing is unlinked. The caller syncs the
+ * directory once after a batch (`fsyncConfinedDirectory`). With
+ * `expectedParent`, the parent must also still be that exact (full-width)
+ * directory identity at this last seam.
+ */
+export async function unlinkConfinedLeafIfIdentity(
+  root: string, leaf: string, expectedDir: string, matches: (stat: import("node:fs").BigIntStats) => boolean, expectedParent?: DirIdentity,
+): Promise<BoundUnlinkOutcome> {
+  const canonicalDir = await resolveExpectedReal(root, expectedDir);
+  const parentReal = await realpath(path.dirname(leaf)).catch(() => null);
+  if (canonicalDir === null || parentReal !== canonicalDir) return "changed";
+  if (expectedParent !== undefined && !(await isDirIdentity(path.dirname(leaf), expectedParent))) return "changed";
+  const present = await lstat(leaf, { bigint: true }).catch(() => null);
+  if (present === null || !present.isFile() || present.isSymbolicLink() || present.nlink !== 1n || !matches(present)) return "changed";
+  await unlink(leaf);
+  return "unlinked";
+}
+
+/**
+ * Durably sync `dir` after confined unlinks, refusing a redirected directory.
+ * With `expected`, the directory handle that is actually synced must be that
+ * exact (full-width) identity, so a replacement at the path is never synced in
+ * its place; without it, the incumbent single-directory chain sync is used.
+ */
+export async function fsyncConfinedDirectory(root: string, dir: string, expected?: DirIdentity): Promise<void> {
+  const canonicalDir = await resolveExpectedReal(root, dir);
+  const real = await realpath(dir).catch(() => null);
+  if (canonicalDir === null || real !== canonicalDir) throw new Error("confined directory sync target is not the expected directory");
+  if (expected === undefined) return fsyncDirectoryChain(real);
+  const handle = await open(real, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW);
+  try {
+    const held = await handle.stat({ bigint: true });
+    if (!held.isDirectory() || held.dev !== expected.dev || held.ino !== expected.ino) throw new Error("confined directory sync target is not the expected directory");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }

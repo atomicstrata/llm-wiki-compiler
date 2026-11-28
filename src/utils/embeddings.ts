@@ -28,6 +28,8 @@
  * caller's own inputs.
  */
 
+import { indexedActive } from "../indexed/routing.js";
+import { refreshShardedEmbeddings } from "../vectors/writer.js";
 import * as output from "./output.js";
 import {
   STORE_VERSION,
@@ -69,11 +71,28 @@ type EmbeddingRefreshResult = { embedded: PageId[]; eligible: PageId[]; pruned: 
  */
 export interface EmbeddingWriterSources extends ScopedEmbeddingSources {
   readonly writes: StoredEmbeddingWrites;
+  /**
+   * OPTIONAL: the piecewise vector writer when the project is `local-indexed`
+   * (the core then dispatches to it), or `null` when the incumbent whole
+   * store is the authority. Absent in test doubles.
+   */
+  sharded?(): Promise<ShardedEmbeddingWriter | null>;
+}
+
+/** What the core asks of the piecewise writer. */
+export interface ShardedEmbeddingWriter {
+  refresh(changedPageIds: PageId[], prepare: EmbeddingPrepare | undefined, affectedOnly: boolean, recorder?: EmbeddingAttemptRecorder): Promise<EmbeddingRefreshResult>;
 }
 
 /** LOCAL DISK. The incumbent reads and writes for `root`. Building them does no I/O. Exported only so the refresh's root forms can compose it; in no package index. */
 export function diskEmbeddingWriterSources(root: string): EmbeddingWriterSources {
-  return { ...diskScopedEmbeddingSources(root), writes: diskStoredEmbeddingWrites(root) };
+  const scoped = diskScopedEmbeddingSources(root);
+  return {
+    ...scoped, writes: diskStoredEmbeddingWrites(root),
+    sharded: async () => ((await indexedActive(root))
+      ? { refresh: (changed, prepare, affectedOnly, recorder) => refreshShardedEmbeddings(root, scoped, changed, prepare, affectedOnly, recorder) }
+      : null),
+  };
 }
 
 /**
@@ -157,6 +176,8 @@ export async function updateEmbeddingsLockedCoreFrom(
     output.verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
     return { embedded: [], eligible: [], pruned: [] };
   }
+  const sharded = await sources.sharded?.();
+  if (sharded) return sharded.refresh(changedPageIds, prepare, scope === "affected-only", recorder); // local-indexed: touched pieces only
   if (scope === "affected-only") return updateAffectedEmbeddings(sources, changedPageIds, prepare, recorder);
   const model = resolveEmbeddingModel();
   const profile = await loadProfileFrom(sources.profile);

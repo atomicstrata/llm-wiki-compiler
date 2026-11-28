@@ -14,6 +14,7 @@
  */
 
 import type { EmbeddingInputType, LLMProvider } from "./provider.js";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 import {
   EMBED_BATCH_SIZES,
   EMBED_BATCH_SIZE_FALLBACK,
@@ -113,6 +114,8 @@ export function isTransient(err: unknown): boolean {
  * provider's documented input cap. Invalid overrides warn and fall back.
  */
 export function resolveEmbedBatchSize(providerName: string): number {
+  const host = compilerModelScope();
+  if (host) return host.models.embeddingBatchSize;
   const def = EMBED_BATCH_SIZES[providerName] ?? EMBED_BATCH_SIZE_FALLBACK;
   const cap = EMBED_BATCH_CAPS[providerName] ?? EMBED_BATCH_CAP_FALLBACK;
   const raw = process.env[ENV_EMBED_BATCH_SIZE]?.trim();
@@ -230,6 +233,7 @@ async function embedSubBatch(
   inputType: EmbeddingInputType = "document",
   track?: RequestTrack,
 ): Promise<number[][]> {
+  if (compilerModelScope()) return validatedBatch(provider, sub, expectedDim, inputType, track);
   if (!provider.embedBatch) return sequentialEmbed(provider, sub, expectedDim, inputType, track);
   try {
     return await validatedBatch(provider, sub, expectedDim, inputType, track);

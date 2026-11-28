@@ -291,7 +291,11 @@ async function replaceCanonicalCandidateFrom(
 }
 
 /** Preserve the public writer's serialization without a new record-size cap. */
-function serializeCandidate(candidate: ReviewCandidate): string {
+/**
+ * The stored form of a candidate record. Exported so a proposal store other
+ * than `.llmwiki/candidates/` writes records the shared parser reads back.
+ */
+export function serializeCandidate(candidate: ReviewCandidate): string {
   return JSON.stringify(candidate, null, 2);
 }
 
@@ -300,7 +304,7 @@ function serializeCandidate(candidate: ReviewCandidate): string {
  * Build the candidate record for `draft` under `id`, with no storage effect.
  * This is the one place a draft becomes a record, whichever store keeps it.
  */
-function buildCandidate(draft: CandidateDraft, id: string): ReviewCandidate {
+export function buildCandidate(draft: CandidateDraft, id: string): ReviewCandidate {
   assertAnswerCandidateMetadata({ ...draft, id, reviewMode: draft.reviewMode ?? "forced" }, id);
   const candidate: ReviewCandidate = {
     id,

@@ -38,6 +38,9 @@ import { writePreparationCancelLockFree } from "../../src/preparations/cancellat
 /** A fixed cancel nonce; the cancel record is authenticated, not free-form. */
 const CANCEL_NONCE = "0".repeat(32);
 
+/** A cancel poll interval far beyond any leg's lifetime: the poll cannot tick while the leg runs. */
+const POLL_BEYOND_LEG_MS = 600_000;
+
 const staged: StagedPreparation[] = [];
 afterEach(async () => {
   await Promise.all(staged.splice(0).map(
@@ -179,17 +182,31 @@ describe("a required leg's fault parks the run, recoverably", () => {
     // Closing the gap by re-reading the advisory here was tried and rejected:
     // it races in BOTH directions, and a retraction between the two reads
     // skips the park and restores the ownerless-`running` strand.
+    //
+    // DETERMINISM. "Not delivered" must be a pinned precondition, not a timing
+    // hope: the executor's 100 ms poll can validate the file it reads while this
+    // leg is still awaiting its own write, and then it delivers the cancel and
+    // the run settles `cancelled`. So the poll interval is set far beyond the
+    // leg's lifetime for THIS arm only (the sibling arm above needs the real
+    // poll to deliver), and the process env is restored in `finally`.
     const run = await stagePreparation();
     staged.push(run);
-    await executePhaseAttempt(attemptRequest(run, {
-      leg: async () => {
-        await writePreparationCancelLockFree(run.root, {
-          workspaceId: run.binding.workspaceId, runId: run.binding.runId,
-          requester: "op", at: "2026-07-22T00:00:00.000Z", nonce: CANCEL_NONCE,
-        });
-        throw new Error("isolation tool unavailable");
-      },
-    }));
+    const previous = process.env.LLMWIKI_PREP_CANCEL_POLL_INTERVAL_MS;
+    process.env.LLMWIKI_PREP_CANCEL_POLL_INTERVAL_MS = String(POLL_BEYOND_LEG_MS);
+    try {
+      await executePhaseAttempt(attemptRequest(run, {
+        leg: async () => {
+          await writePreparationCancelLockFree(run.root, {
+            workspaceId: run.binding.workspaceId, runId: run.binding.runId,
+            requester: "op", at: "2026-07-22T00:00:00.000Z", nonce: CANCEL_NONCE,
+          });
+          throw new Error("isolation tool unavailable");
+        },
+      }));
+    } finally {
+      if (previous === undefined) delete process.env.LLMWIKI_PREP_CANCEL_POLL_INTERVAL_MS;
+      else process.env.LLMWIKI_PREP_CANCEL_POLL_INTERVAL_MS = previous;
+    }
     const read = await readRun(run);
     if (read.status !== "ok") throw new Error(`run ${read.status}`);
     expect(read.run.state, "parked, never left ownerless-running").toBe("recovery-required");

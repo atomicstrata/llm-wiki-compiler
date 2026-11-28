@@ -9,16 +9,23 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
+import { executingRuntime, inheritedRuntimeOptions, preloadFlag, runtimeOptionsVariable } from "./fixtures/child-guard-bootstrap.js";
 import { installFakeCodex } from "./fixtures/fake-codex.js";
 import { expectCLIFailure, expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 
 const aimock = useAimockLifecycle("codex-agent-environment");
 const tracker = path.resolve("test/fixtures/track-dotenv-read.mjs");
+/** `runCLI` spawns process.execPath, so the CLI child runs under this process's runtime. */
+const CLI_RUNTIME = executingRuntime();
 
-/** Environment that records dotenv reads and reaches the Codex boundary. */
+/**
+ * Environment that records dotenv reads and reaches the Codex boundary.
+ * The tracker is added to the inherited preload variable of the CLI's runtime
+ * (`BUN_OPTIONS` under Bun), never in place of it.
+ */
 function trackedEnv(logPath: string): NodeJS.ProcessEnv {
   return {
-    BUN_OPTIONS: `--preload=${tracker}`,
+    [runtimeOptionsVariable(CLI_RUNTIME)]: inheritedRuntimeOptions(CLI_RUNTIME, preloadFlag(CLI_RUNTIME, tracker)),
     LLMWIKI_TEST_DOTENV_READ_LOG: logPath,
     LLMWIKI_EMBEDDING_PROVIDER: "ollama",
   };
@@ -50,6 +57,9 @@ describe("codex-agent environment-file isolation", () => {
     await writeFile(path.join(cwd, ".env"), "LLMWIKI_VERBOSE=1\n", "utf8");
     const result = await runCLI(["--version"], cwd, {
       ...trackedEnv(logPath),
+      // Default discovery is the subject here, so this case alone drops any inherited
+      // DOTENV_CONFIG_PATH; dotenv then reads only this fresh workspace's `.env`.
+      DOTENV_CONFIG_PATH: undefined,
       LLMWIKI_PROVIDER: "",
     });
     expectCLIExit(result, 0);

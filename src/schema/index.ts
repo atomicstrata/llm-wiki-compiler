@@ -12,7 +12,7 @@ export {
   PAGE_KINDS,
 } from "./types.js";
 export { buildDefaultSchema } from "./defaults.js";
-export { loadSchema, loadSchemaFrom, defaultSchemaInitPath } from "./loader.js";
+export { loadSchema, loadSchemaFrom, defaultSchemaInitPath, schemaFromText } from "./loader.js";
 export {
   resolvePageKind,
   serializeSchemaToYaml,

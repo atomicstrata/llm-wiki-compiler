@@ -39,6 +39,7 @@ import type { JournalWarning } from "../trust/journal-health-warning.js";
 import { toEntityPageView } from "../profile/types.js";
 import type { EntityPageView, EntityProblemView, EntityPage, LoadedProfile } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
+import type { CatalogListingNote } from "../catalog/reads.js";
 
 export type { PageDirectory };
 
@@ -78,7 +79,9 @@ export interface ListPagesOptions {
    * Opaque continuation cursor for the ADDITIVE profile entity section ONLY.
    * Drives the entity window independently of the legacy `cursor` (which scopes
    * `pages`), so the entity batch is never re-sliced or re-sent by legacy
-   * paging. Uses the SAME `limit` as the legacy section.
+   * paging. Uses the SAME `limit` as the legacy section. An offset on an
+   * ordinary project, a typed keyset token on an indexed one (see
+   * {@link ListPagesProfileBlock}); pass back only what a listing returned.
    */
   profileCursor?: string;
   /**
@@ -100,10 +103,20 @@ export interface ListPagesOptions {
  * `includeBody` is false (mirroring how the legacy `pages` block omits bodies).
  *
  * The entity section is BOUNDED by `limit`: it returns at most `limit` views,
- * deterministically sorted by `id`, with `total` reporting the full entity-page
- * count and `cursor` carrying the offset of the NEXT batch (absent when
- * exhausted). Drive the next batch via {@link ListPagesOptions.profileCursor},
- * which is independent of the legacy `pages` cursor.
+ * with `total` reporting the full entity-page count and `cursor` continuing
+ * with the NEXT batch (absent when exhausted). Drive the next batch via
+ * {@link ListPagesOptions.profileCursor}, which is independent of the legacy
+ * `pages` cursor. The ORDER and the cursor depend on the route:
+ * - on an ordinary project (this module's body), views are sorted by `id` and
+ *   both cursors are numeric offsets;
+ * - on a `local-indexed` project with the typed entity catalog
+ *   (`../catalog/entity-reads.ts`), views are in UTF-16 code-unit order of
+ *   their catalog key `e:<type>/<filename stem>`, both cursors are OPAQUE
+ *   keyset tokens bound to that catalog (a token from another catalog, or an
+ *   offset, is refused with `catalog_cursor_stale`), a window may stop early
+ *   on its examined-row budget (`catalog.scanBudgetExhausted` on the result),
+ *   and totals are the catalogued totals (`catalog.staleRows` names files
+ *   re-read because they changed since).
  *
  * @experimental Shape may change in a future release.
  */
@@ -160,6 +173,8 @@ export interface ListPagesResult {
    * post-crash or tampered content as a complete, clean listing.
    */
   warnings?: ListPagesWarning[];
+  /** ADDITIVE, `local-indexed` projects only: the catalog's freshness and any stale or partial-page facts. */
+  catalog?: CatalogListingNote;
 }
 
 /** One read-surface health warning carried on a {@link ListPagesResult}. */
@@ -223,7 +238,7 @@ function diskPageReads(root: string): PageReads {
  * Links are always extracted from the body so they reflect real wikilinks,
  * not any frontmatter list.
  */
-function buildPage(
+export function buildPage(
   dir: PageDirectory,
   slug: string,
   meta: Record<string, unknown>,

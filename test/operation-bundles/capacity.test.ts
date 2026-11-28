@@ -30,11 +30,33 @@ import {
 } from "../../src/operation-bundles/projection-store.js";
 import { writeRetainedSourceCreateOnly } from "../../src/operation-bundles/source-store.js";
 import { createHash } from "node:crypto";
+import { resolveStorageTestProfile } from "../config/storage-test-profile.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import {
   proveAggregatePayloadCap, proveCatalogByteCap, proveCatalogRecordCountCap,
   proveIndividualPayloadCap, proveManifestCap, proveWorkspaceSourceCap,
 } from "./stage-capacity-fixtures.js";
+
+/**
+ * The retained-source cap proof writes 32 retained sources of 16 MiB (512 MiB)
+ * and fingerprints every private file before and after a refused stage. Its
+ * original explicit limit stands for normal storage.
+ */
+const WORKSPACE_SOURCE_CAP_TIMEOUT_MS = 60_000;
+
+/**
+ * The selected storage profile; an unknown profile name fails closed here.
+ * On slow external storage the retained-source cap proof measured 63.9 s,
+ * past its 60 s limit, so only when the slow-durable-storage profile is
+ * explicitly selected does that one case take the profile's per-test budget.
+ * The two catalog cap proofs keep their original 60 s limits.
+ */
+const storageProfile = resolveStorageTestProfile(process.env.LLMWIKI_TEST_STORAGE_PROFILE);
+
+/** The retained-source cap proof's limit for the selected storage profile. */
+const workspaceSourceCapTimeoutMs = storageProfile.profile === "slow-durable-storage"
+  ? storageProfile.testTimeoutMs
+  : WORKSPACE_SOURCE_CAP_TIMEOUT_MS;
 
 const root = useTempRoot();
 
@@ -234,7 +256,7 @@ describe("operation capacity", () => {
 
   it("enforces workspace retained-source bytes through staging without partial writes", async () => {
     await proveWorkspaceSourceCap(root.dir);
-  }, 60_000);
+  }, workspaceSourceCapTimeoutMs);
 
   it("enforces catalog record count through staging without partial writes", async () => {
     await proveCatalogRecordCountCap(root.dir);

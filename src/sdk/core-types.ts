@@ -9,8 +9,14 @@
  */
 import type { PackProviderInvocationV1 } from "../operations-packs/runtime/runner-input.js";
 import type { SdkOperationOptions, WikiOperationSurface } from "./operations-facade.js";
+import type { WikiScaleSurface } from "./scale-facade.js";
+import type { WikiCatalogSurface } from "./catalog-facade.js";
+import type { ScaleRequest } from "../scale/contracts.js";
+export type * from "./scale-facade.js";
+export type * from "./catalog-facade.js";
 
 import type { CompileResult, IngestResult, QueryResult } from "../utils/types.js";
+import type { ReportPageV1 } from "../compiler/batch/report.js";
 import type { IngestTextInput } from "../commands/ingest.js";
 import type { LintSummary } from "../linter/types.js";
 import type { TieredLintReportV1 } from "../linter/tiers.js";
@@ -169,6 +175,17 @@ export interface CreateWikiOptions {
 }
 
 /**
+ * Options for the async `initWiki` / `initWikiCore`: create the local project,
+ * prove its setup usable, and (optionally) record and prepare an expected
+ * scale BEFORE the first ingest. Without `expectedScale` no scale record is
+ * written. An expected scale is a planning target, not verified capacity.
+ */
+export interface InitWikiOptions extends CreateWikiOptions {
+  /** Expected total source bytes, document count, or both (a missing one is derived). Check `wiki.scale.status()` afterwards. */
+  expectedScale?: ScaleRequest;
+}
+
+/**
  * @experimental
  * The host-assigned preparation authority for an SDK embedder.
  *
@@ -259,6 +276,14 @@ export interface SdkCompileOptions {
    * False prevents embedding-provider calls and pending-embedding retries.
    */
   embeddings?: boolean;
+  /**
+   * Segmented projects only (a ready `segmented-compile-state-1` capability):
+   * sources (or pages) per resumable checkpoint of the batch compile. Refused
+   * on any other project.
+   */
+  batchSize?: number;
+  /** Segmented projects only: supersede the active batch run and start over from the current inputs. */
+  restart?: boolean;
 }
 
 /** Options for `getContextPack`. Maps onto the subset of BuildContextPackOptions needed externally. */
@@ -328,6 +353,13 @@ export interface WikiCore {
    * For long corpora this call may take several minutes with no intermediate feedback.
    */
   compile(options?: SdkCompileOptions): Promise<CompileResult>;
+  /**
+   * One page of a batch compile run's per-source and per-page report (a
+   * segmented project's `compile()` result carries `mode: "batch"` and the
+   * run id, with empty arrays). Read-only; needs no credentials. Continue
+   * with the returned `cursor`.
+   */
+  compileReport(runId: string, options?: { cursor?: string }): Promise<ReportPageV1>;
   /**
    * Pick and hydrate the most relevant pages for a question. Requires LLM credentials.
    *
@@ -770,6 +802,17 @@ export interface WikiCore {
   product: WikiProductSurface;
   /** Experimental prepare/observe/retire surface; apply remains a separate operator action. */
   operations: WikiOperationSurface;
+  /**
+   * The project's expected scale: `status()`, `set()` and `prepare()`. While a
+   * transition is unfinished or parked, or the estimate needs a backend this
+   * build does not provide, dependent mutations refuse. Ordinary local reads
+   * (pages, sources, search, status) keep working; on a project registered for
+   * the portable path, every gated portable step — its reads and status too —
+   * refuses `recovery_blocking` until the transition settles.
+   */
+  scale: WikiScaleSurface;
+  /** The durable paged catalog of a `local-indexed` project (bounded status, explicit reconciliation). */
+  catalog: WikiCatalogSurface;
 }
 
 /**

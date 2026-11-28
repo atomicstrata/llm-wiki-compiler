@@ -6,6 +6,22 @@ description: "Use createWiki() to drive llmwiki in-process from TypeScript or Ja
 
 The llmwiki SDK lets you drive the entire wiki pipeline from inside your own TypeScript or JavaScript application. Instead of spawning a child process and scraping CLI output, you import `createWiki` directly from the package and call methods that return typed results. Every method runs silently - no console output, no global state - and concurrent calls are fully isolated via `AsyncLocalStorage`.
 
+### Run with host-supplied models
+
+Use the package-root `runCompilerOperation` when an embedding application owns
+model routing. Each call supplies completion and embedding callbacks with
+explicit model identities. The callbacks receive the compiler's purpose for
+each request. The embedding fingerprint must identify the vector space and
+stay the same across compatible compiles and queries. An optional extraction
+identity records a separately routed extraction model in reuse metadata.
+
+A compile operates on a disposable working copy and requires complete
+embedding coverage to succeed. A query operates on an immutable copy and
+requires SHA-256 hashes for `wiki/index.md` and the authoritative embedding
+file. It verifies the hashes before model calls and makes no project writes.
+Review and the segmented `local-indexed` layout are outside this operation
+surface. The host owns authorization, callback cancellation and any deadlines.
+
 Use the SDK when you are embedding llmwiki in your own tooling: a build script, a CI harness, a REST API, a test suite, or any context where you want structured results and clean composability. Use the CLI when you are working interactively from the terminal. Use the MCP server when you want AI agents to drive the pipeline - see [MCP Integration](/guides/mcp-agent-integration).
 
 ## Installation
@@ -252,6 +268,30 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
 
   There is no progress callback in v1. On a large corpus, this call can run for several minutes with no intermediate feedback.
 </ParamField>
+
+#### Batch compile
+
+On a project whose segmented compile state is ready, `compile()` runs as a batch run. Its result carries `mode: "batch"` and a `batch` summary (run id, phase and counters); `concepts` and `pages` are empty. Pass `embeddings: false`; `batchSize` and `restart` are accepted on such a project and refused on any other.
+
+- `wiki.compileReport(runId, { cursor? })` returns one page of a batch run's per-source and per-page report. Read-only; needs no credentials.
+- A batch compile refuses `noPagesLimit`, `review` and an embeddings refresh before the provider check, with `compile_batch_unsupported_option`. There is no `compileDryRun` and no `rebuildSources` option in this release.
+
+### Expected scale and catalog
+
+`initWiki(options)` is the async counterpart of `createWiki`: it creates the local project at `options.root` and, when `options.expectedScale` is given, records and prepares that expected scale before the first ingest. `createWiki` stays synchronous and does no I/O.
+
+```ts
+import { initWiki } from "llm-wiki-compiler";
+
+const wiki = await initWiki({ root: "/path/to/project", expectedScale: { sizeBytes: 2_000_000_000 } });
+const report = await wiki.scale.status();
+```
+
+- `wiki.scale` exposes `status()`, `set()` and `prepare()`, plus preview, explicit scale-down and archive reads. While a transition is unfinished or parked, dependent mutations refuse; ordinary reads keep working.
+- `wiki.scale.status()` reports the admission it observes: `readiness` can also be `downgrading` (same-plan scale-down recovery needed), `unreadable` (record unreadable, or missing beside indexed stores; `record` and `plan` are `null`) or `restoring` (an indexed-authority restore holds the project), each with a `reason`. The report is advisory and authorizes nothing. `restoring` is new in this release candidate. Code that switches exhaustively over `ScaleReadiness`, or validates it against a closed list of the previous values, must accept it.
+- `wiki.catalog` exposes the paged catalog of an indexed project: bounded status, explicit reconciliation, verification, and the maintenance operations described in [Scale and catalog](/cli/scale).
+
+An expected scale is a planning target, not verified capacity.
 
 ### Query and search
 

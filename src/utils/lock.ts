@@ -6,7 +6,7 @@
  * kernel grants to exactly one acquirer. Publication rather than a bare
  * `open(wx)` is what makes the lock atomic in the sense that matters here — the
  * name must never be observable as an EMPTY file, because the staleness
- * predicate treats an unreadable owner as reclaimable and would let a contender
+ * predicate treats a malformed owner as reclaimable and would let a contender
  * take the lock away from a live process mid-acquisition. See
  * {@link ./lock-publication.js}.
  *
@@ -37,7 +37,8 @@
  * record's process identity, process liveness, the clock and sleep, scratch
  * entropy, the process-local FIFO and its parked permits, and diagnostics). The
  * bodies keep every decision: the lock path, the reclaim name, the two attempts,
- * `null` owner means stale, the reclaim protocol, the PID-only release guard,
+ * absent or malformed owner means stale, unavailable means occupied, the reclaim
+ * protocol, the PID-only release guard,
  * the queue key fallback, every catch, every warning and its order. The root
  * forms keep their signatures and pass {@link diskLockIo} and
  * {@link localLockHost}, whose members call the incumbent functions at call time,
@@ -381,24 +382,27 @@ async function tryCreateLock(io: LockIo, host: LockHost, lockPath: string, hooks
 }
 
 /**
- * Read the OWNER record from the lock leaf through a HARDENED handle, or `null` on
- * ANY failure (absent / symlinked / oversize / non-regular / unparseable).
+ * Read the OWNER record through a hardened handle. An absent or malformed leaf
+ * has no owner; an unavailable read cannot prove the owner is gone.
  *
  * Opens with `O_RDONLY | O_NOFOLLOW` so a planted symlinked `.llmwiki/lock` →
  * `ELOOP` (never followed to its out-of-tree target — closing the symlink-class
  * read oracle + the unbounded-target DoS), `fstat`s the HANDLE requiring a REGULAR
  * file, and enforces the small {@link MAX_LOCK_FILE_BYTES} cap before reading. The
  * raw text is then parsed by {@link parseOwner} (new `{pid, startTime}` JSON OR a
- * legacy bare PID). The single hardened leaf reader shared by {@link isLockStale}
- * (stale check) and {@link releaseLock} (ownership guard), so neither follows nor
- * over-reads the leaf.
+ * legacy bare PID). The single hardened leaf reader is shared by
+ * {@link isLockStale} and {@link releaseLock}, so neither follows nor over-reads.
  */
-async function readLockOwner(io: LockIo, lockPath: string): Promise<ReturnType<typeof parseOwner>> {
-  // Absent (ENOENT), a symlinked leaf, a non-regular leaf, an oversize leaf and a
-  // failed stat or read are ALL "no readable owner": this reader has never told
-  // absent from unreadable, so both of the storage read's refusals map to null.
+const LOCK_UNAVAILABLE = Symbol("lock-unavailable");
+
+/** An owner, no owner, or a read that cannot establish whether an owner exists. */
+type LockOwnerRead = ReturnType<typeof parseOwner> | typeof LOCK_UNAVAILABLE;
+
+/** Read the owner without treating a failed physical read as proof of staleness. */
+async function readLockOwner(io: LockIo, lockPath: string): Promise<LockOwnerRead> {
   const read = await io.readLeafCapped(lockPath, MAX_LOCK_FILE_BYTES);
-  if (read.kind !== "ok") return null;
+  if (read.kind === "unavailable") return LOCK_UNAVAILABLE;
+  if (read.kind === "absent") return null;
   try {
     return parseOwner(read.body);
   } catch {
@@ -410,8 +414,9 @@ async function readLockOwner(io: LockIo, lockPath: string): Promise<ReturnType<t
  * Check if an existing lock is stale (its holder no longer holds it).
  *
  * The leaf is read through {@link readLockOwner} (no-follow + fstat-capped), so a
- * `null` owner (absent / symlinked / oversize / non-regular / unparseable) is
- * stale. A readable owner is judged by the host's liveness classifier
+ * An absent or unparseable owner is stale; a symlinked, oversized, non-regular
+ * or unreadable leaf is occupied because its owner cannot be classified.
+ * A readable owner is judged by the host's liveness classifier
  * ({@link isLockRecordStale} locally): a dead PID is stale (unchanged), AND —
  * closing the PID-reuse wedge — a LIVE PID whose recorded start time differs from
  * the live process's current start time is ALSO stale. A legacy leaf (bare PID, no
@@ -420,6 +425,7 @@ async function readLockOwner(io: LockIo, lockPath: string): Promise<ReturnType<t
  */
 async function isLockStale(io: LockIo, host: LockHost, lockPath: string): Promise<boolean> {
   const owner = await readLockOwner(io, lockPath);
+  if (owner === LOCK_UNAVAILABLE) return false;
   if (owner === null) return true;
   return host.isOwnerProcessStale(owner);
 }
@@ -429,7 +435,7 @@ async function isLockStale(io: LockIo, host: LockHost, lockPath: string): Promis
  *
  * OWNERSHIP PRECONDITION: only unlinks the lock when WE own it (the leaf's PID ===
  * `process.pid`). A lock owned by a DIFFERENT pid — or one that is unreadable /
- * symlinked / oversize / absent (owner `null`) — is left untouched (a NO-OP), so a
+ * symlinked / oversize / absent — is left untouched (a NO-OP), so a
  * stray or cross-actor `releaseLock` can NEVER delete a lock held by another live
  * process and silently drop mutual exclusion.
  *
@@ -472,7 +478,7 @@ export async function releaseLockFrom(io: LockIo, host: LockHost, root: string):
   }
   const lockPath = lockFileIn(privateDir);
   const owner = await readLockOwner(io, lockPath);
-  if (owner?.pid !== host.processId()) {
+  if (owner === LOCK_UNAVAILABLE || owner?.pid !== host.processId()) {
     releaseQueue();
     return; // foreign / unreadable / symlinked / absent → no-op
   }

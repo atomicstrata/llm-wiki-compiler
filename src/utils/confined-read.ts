@@ -291,7 +291,7 @@ async function hasCanonicalExistingAncestor(expectedDir: string, expectedReal: s
 
 
 /** Read at most one byte beyond the cap, including when the inode grows mid-read. */
-async function readBoundedBytes(handle: FileHandle, maxBytes: number): Promise<Buffer> {
+export async function readBoundedBytes(handle: FileHandle, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let length = 0;
   const chunkBytes = 64 * 1024;

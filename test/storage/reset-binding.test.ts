@@ -51,6 +51,7 @@ const FILES = [
 const LINES: Record<StateResetNotice, string> = {
   "no-state": "No state file to reset.", plan: "Will back up", escape: "escapes the project root",
   busy: "Another llmwiki process", "bak-not-regular": "is not a regular file", reset: "Backup saved to",
+  segmented: "the compile state is segmented",
 };
 const FAILURES: readonly StateResetNotice[] = ["escape", "busy", "bak-not-regular"];
 let events: string[] = [];
@@ -217,7 +218,12 @@ async function bodyOver(world: StateWorld): Promise<[string[], typeof process.ex
   return [asEvents(log), failed ? 1 : exitCodeBefore];
 }
 
-describe("the state reset as root-free bodies", () => {
+/**
+ * Registers cases of the `the state reset as root-free bodies` suite,
+ * unchanged and in order. Called from inside that suite's callback, so they
+ * keep its title path and hooks.
+ */
+function registerTheStateResetAs1(): void {
   it("S1 answers what the root command answers for each real layout, with every line and the lock in the same order", async () => {
     expect(await commandIn(await realProject([]), true)).toEqual(await bodyOver({ dir: "absent" }));
     expect(await commandIn(await realProject([path.join(".llmwiki", "other.json")]), true)).toEqual(await bodyOver({ state: false }));
@@ -250,7 +256,14 @@ describe("the state reset as root-free bodies", () => {
       expect(log).toEqual(expected);
     }
   });
+}
 
+/**
+ * Registers cases of the `the state reset as root-free bodies` suite,
+ * unchanged and in order. Called from inside that suite's callback, so they
+ * keep its title path and hooks.
+ */
+function registerTheStateResetAs2(): void {
   it("S4 moves the raw state over an absent or regular backup, and a faulted look counts as absent", async () => {
     const STATE = path.join("/memory/real/.llmwiki", path.basename(STATE_FILE));
     const CONFINED = `/memory/confined/${path.basename(STATE_FILE)}`;
@@ -278,6 +291,12 @@ describe("the state reset as root-free bodies", () => {
     await expect(resetStateFileWith(memorySteps(log, { renameFault: fault("EXDEV") }))).rejects.toThrow("EXDEV");
     expect(log.slice(-2)).toEqual([expect.stringMatching(/^rename /), "release"]);
   });
+}
+
+
+describe("the state reset as root-free bodies", () => {
+  registerTheStateResetAs1();
+  registerTheStateResetAs2();
 });
 
 describe("the reset family's root delegation", () => {

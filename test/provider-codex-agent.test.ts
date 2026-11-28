@@ -53,6 +53,18 @@ async function installInjectingNodeWrapper(realNode: string): Promise<string> {
   return root;
 }
 
+/** A first-PATH Node wrapper that records each launch and refuses immediately. */
+async function installRejectingNodeWrapper(): Promise<{ directory: string; launches: string }> {
+  const directory = await mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "llmwiki-node-reject-"));
+  tempRoots.push(directory);
+  const launches = path.join(directory, "launches");
+  const escaped = launches.replaceAll("'", "'\\''");
+  const wrapper = path.join(directory, "node");
+  await writeFile(wrapper, `#!/bin/sh\nprintf 'launched\\n' >> '${escaped}'\nexit 47\n`);
+  await chmod(wrapper, 0o755);
+  return { directory, launches };
+}
+
 /** Assert one completion failure and the cleanup of its captured invocation cwd. */
 async function expectCleanFailure(
   fake: FakeCodex,
@@ -167,6 +179,21 @@ describe("CodexAgentProvider process boundary", () => {
         .complete("system", [{ role: "user", content: "hello" }], 1);
       const [call] = await fake.calls();
       expect(call.env.LLMWIKI_LAUNCHER_INJECTED).toBeUndefined();
+    },
+  );
+
+  it.if(process.platform !== "win32" && realNode !== null)(
+    "refuses before spawning Codex when the first Node interpreter cannot be verified",
+    async () => {
+      const fake = await useFake();
+      const wrapper = await installRejectingNodeWrapper();
+      process.env.PATH = [fake.binDir, wrapper.directory, path.dirname(realNode!), originalEnv.PATH ?? ""]
+        .join(path.delimiter);
+      await expect(new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS })
+        .complete("system", [{ role: "user", content: "hello" }], 1))
+        .rejects.toThrow(/Node interpreter.*verified/i);
+      expect((await readFile(wrapper.launches, "utf8")).trim().split("\n")).toHaveLength(1);
+      expect(await fake.calls()).toEqual([]);
     },
   );
 

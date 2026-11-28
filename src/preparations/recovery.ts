@@ -569,8 +569,8 @@ export interface HandoffRunSettlementWrite {
 /** Every collaborator the settlement pass needs. */
 export type HandoffSettlementSteps = HandoffSettlementReads & HandoffRunSettlementWrite;
 
-/** Read every manifest's run under the current key epoch; only `ok` runs are returned, in order. */
-async function readableRuns(
+/** Read every manifest's run under the current key epoch; only `ok` runs are returned, in order. Shared with the read-only selector (`./settlement-pending.ts`). */
+export async function readableRuns(
   reads: HandoffSettlementReads, manifests: readonly PreparationManifestV1[], keyEpochId: Sha256Digest,
 ): Promise<{ binding: PreparationRunBinding; run: PreparationRunV1 }[]> {
   const pairs: { binding: PreparationRunBinding; run: PreparationRunV1 }[] = [];

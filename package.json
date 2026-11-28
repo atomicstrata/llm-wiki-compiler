@@ -1,6 +1,6 @@
 {
   "name": "llm-wiki-compiler",
-  "version": "1.5.0",
+  "version": "1.6.0-rc.2",
   "description": "Compile documents into a persistent, cited knowledge wiki for AI agents. CLI, MCP server, and TypeScript SDK.",
   "mcpName": "io.github.atomicstrata/llmwiki",
   "type": "module",
@@ -31,7 +31,7 @@
     "typecheck:tests": "bun scripts/typecheck-tests.ts",
     "typecheck:tests:update": "bun scripts/typecheck-tests.ts --update",
     "fallow:ci": "bash scripts/fallow-ci.sh",
-    "prepublishOnly": "bun run release:check-docs:current && bun run build && bun pm pack --dry-run --ignore-scripts",
+    "prepublishOnly": "node scripts/refuse-direct-publish.mjs",
     "prepare": "husky",
     "test:pack": "bun run build && bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts ./test/products/private-packages-pack.test.ts"
   },
@@ -75,8 +75,8 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.163",
     "@anthropic-ai/sdk": "^0.101.0",
-    "@atomicstrata/llmwiki-core": "1.5.0",
-    "@atomicstrata/llmwiki-local-workflows": "1.5.0",
+    "@atomicstrata/llmwiki-core": "1.6.0-rc.2",
+    "@atomicstrata/llmwiki-local-workflows": "1.6.0-rc.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.20.0",

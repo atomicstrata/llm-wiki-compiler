@@ -6,8 +6,8 @@
  * — and every re-run passed. It is not a scheduling artifact. Acquisition used
  * to create the authoritative lock name and write the owner record into it as
  * two steps, so the lock was briefly a zero-byte file; `isLockStale` reports an
- * unreadable owner as stale (it must, or a corrupt lock would strand the
- * project forever), so a contender arriving in that window reclaimed the lock
+ * empty, malformed owner as stale (a malformed lock remains recoverable),
+ * so a contender arriving in that window reclaimed the lock
  * from a LIVE acquirer and both processes proceeded believing they held it.
  *
  * These cases hold that interval open with a publication seam rather than

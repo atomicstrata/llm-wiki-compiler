@@ -27,6 +27,8 @@ import { locationIsNonDirectorySync } from "../storage/disk-locations.js";
 import { withQuiet } from "../utils/output.js";
 import { ingestSource, ingestTextSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
+import { readReport } from "../compiler/batch/report.js";
+import { assertCompileOptionsRoutable } from "../compiler/batch/route.js";
 import { generateAnswer, assertQuerySaveOptions } from "../commands/query.js";
 import { lint, lintByTier } from "../linter/index.js";
 import { buildContextPack } from "../context/build.js";
@@ -38,20 +40,24 @@ import {
 } from "../utils/provider-guard.js";
 import { collectStatus } from "../status/collect.js";
 import { pickSearchRefs, loadSelectedRefs } from "../search/retrieval.js";
-import { getPage, listPages } from "../pages/list.js";
-import { listSources, getSource, deleteSource } from "../sources/store.js";
-import { withRegisteredProjectLock } from "../operation-bundles/registered-project-lock.js";
+import { getPage } from "../pages/list.js";
+import { getSource } from "../sources/store.js";
+import { deleteSourceRouted, routedListPages, routedListSources } from "../catalog/routes.js";
+import { withCooperativeWriterLock } from "../operation-bundles/registered-project-lock.js";
 import { runOkfExport } from "../export/okf/run.js";
 import { runOkfImport } from "../import/run.js";
 import { buildStagingFacade } from "./staging-facade.js";
 import { buildPreparationFacade } from "./preparation-facade.js";
 import { buildProductFacade } from "./product-facade.js";
 import { buildOperationsFacade } from "./operations-facade.js";
+import { buildScaleFacade, initProjectAtRoot } from "./scale-facade.js";
+import { buildCatalogFacade } from "./catalog-facade.js";
+import { assertScaleReady } from "../scale/gate.js";
 import { applyApprovedMutations } from "../trust/executor.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
 import { resolveArtifactRef, declaresArtifactTypes, ArtifactVerifyUnavailableError, type ArtifactHealth } from "../artifacts/resolve.js";
 import type { ArtifactPlannedMutation } from "../trust/planner.js";
-import type { CreateWikiOptions, WikiCore, SdkCompileOptions } from "./core-types.js";
+import type { CreateWikiOptions, InitWikiOptions, WikiCore, SdkCompileOptions } from "./core-types.js";
 import { readVerifiedArtifactBody } from "../artifacts/read-verified.js";
 import { captureArtifactSelector, discoverArtifact } from "../artifacts/discover.js";
 
@@ -84,6 +90,33 @@ export function createWikiCore(options: CreateWikiOptions): WikiCore {
   return createWikiCoreAtRoot(path.resolve(options.root), options);
 }
 
+/**
+ * Create the local project at `options.root` (and set its expected scale when
+ * given), then return the core facade. The async counterpart of
+ * {@link createWikiCore}, which stays synchronous and does no I/O.
+ */
+export async function initWikiCore(options: InitWikiOptions): Promise<WikiCore> {
+  const root = path.resolve(options.root);
+  await runQuiet(() => initProjectAtRoot(root, options.expectedScale));
+  return createWikiCoreAtRoot(root, options);
+}
+
+/** The compile members of the core at `root`: the compile itself and the read-only page of a batch run's report. */
+function compileMembers(root: string): Pick<WikiCore, "compile" | "compileReport"> {
+  return {
+    compile: (opts: SdkCompileOptions = {}) =>
+      runQuiet(async () => {
+        // A project blocked by its expected scale refuses before the provider check; the lock rechecks.
+        await assertScaleReady(root);
+        // An option this project's compile body does not support refuses before the provider check too.
+        await assertCompileOptionsRoutable(root, opts);
+        ensureCompileProviderAvailable(opts.embeddings !== false);
+        return compileAndReport(root, opts);
+      }),
+    compileReport: (runId, opts = {}) => runQuiet(() => readReport(root, runId, opts.cursor)),
+  };
+}
+
 /** Assemble core at a root already normalized by the standard facade. */
 export function createWikiCoreAtRoot(root: string, options: CreateWikiOptions): WikiCore {
   // A missing root is valid — ingest/ingestText create sources/ via recursive mkdir.
@@ -94,15 +127,13 @@ export function createWikiCoreAtRoot(root: string, options: CreateWikiOptions): 
 
   return {
     operations: buildOperationsFacade(root, runQuiet, options),
+    scale: buildScaleFacade(root, runQuiet),
+    catalog: buildCatalogFacade(root, runQuiet),
     ingest: ({ source }) => runQuiet(() => ingestSource(root, source)),
 
     ingestText: (input) => runQuiet(() => ingestTextSource(root, input)),
 
-    compile: (opts: SdkCompileOptions = {}) =>
-      runQuiet(() => {
-        ensureCompileProviderAvailable(opts.embeddings !== false);
-        return compileAndReport(root, opts);
-      }),
+    ...compileMembers(root),
 
     search: (question, opts = {}) =>
       runQuiet(async () => {
@@ -121,14 +152,14 @@ export function createWikiCoreAtRoot(root: string, options: CreateWikiOptions): 
 
     getPage: (ref) => runQuiet(() => getPage(root, ref)),
 
-    listPages: (opts) => runQuiet(() => listPages(root, opts)),
+    listPages: (opts) => runQuiet(() => routedListPages(root, opts)),
 
-    listSources: (opts) => runQuiet(() => listSources(root, opts)),
+    listSources: (opts) => runQuiet(() => routedListSources(root, opts)),
 
     getSource: (id) => runQuiet(() => getSource(root, id)),
 
-    // Lock-free on an ordinary project; under the gated project lock once registered.
-    deleteSource: (id) => runQuiet(() => withRegisteredProjectLock(root, () => deleteSource(root, id))),
+    // Under the project lock on every project; the gated lock once registered.
+    deleteSource: (id) => runQuiet(() => withCooperativeWriterLock(root, "source delete", () => deleteSourceRouted(root, id))),
 
     status: () => runQuiet(() => collectStatus(root)),
 

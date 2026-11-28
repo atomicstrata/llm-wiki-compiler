@@ -1,7 +1,7 @@
 {
   "name": "@atomicstrata/llmwiki-local-workflows",
   "description": "Optional compiler-local workflow engine using explicit llmwiki core services",
-  "version": "1.5.0",
+  "version": "1.6.0-rc.2",
   "type": "module",
   "publishConfig": { "access": "public" },
   "main": "./dist/index.js",
@@ -21,7 +21,8 @@
   },
   "scripts": {
     "build": "tsup",
-    "prepack": "bun run build"
+    "prepack": "bun run build",
+    "prepublishOnly": "node ../../scripts/refuse-direct-publish.mjs"
   },
   "exports": {
     ".": {
@@ -31,6 +32,6 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
-    "@atomicstrata/llmwiki-core": "1.5.0"
+    "@atomicstrata/llmwiki-core": "1.6.0-rc.2"
   }
 }

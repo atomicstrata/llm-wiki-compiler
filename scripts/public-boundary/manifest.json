@@ -1,0 +1,585 @@
+{
+  "description": "The public release boundary of the single-node public candidate and its public packages. Read by scripts/check-public-boundary.mjs and scripts/build-public-release.mjs. This tree starts from the public baseline: its own entries ARE the public composition, so there is no separate internal facade to derive from. Changing an allocation here is a release decision, not a build tweak.",
+  "publicPackages": [
+    {
+      "name": "llm-wiki-compiler",
+      "dir": ".",
+      "entries": [
+        "root:cli",
+        "root:sdk"
+      ],
+      "stage": "llm-wiki-compiler"
+    },
+    {
+      "name": "@atomicstrata/llmwiki-core",
+      "dir": "packages/llmwiki-core",
+      "entries": [
+        "core:index",
+        "core:compiler-cli",
+        "core:compiler-legacy-workflows",
+        "core:compiler-sdk",
+        "core:local-workflow-host",
+        "core:local-workflow-contracts"
+      ],
+      "stage": "llmwiki-core"
+    },
+    {
+      "name": "@atomicstrata/llmwiki-local-workflows",
+      "dir": "packages/llmwiki-local-workflows",
+      "entries": [
+        "local-workflows:index"
+      ],
+      "stage": "llmwiki-local-workflows"
+    }
+  ],
+  "packageEntries": {
+    "@atomicstrata/llmwiki-core": "src/core-index.ts",
+    "@atomicstrata/llmwiki-core/compiler-cli": "src/compiler-cli.ts",
+    "@atomicstrata/llmwiki-core/compiler-legacy-workflows": "src/local-workflow-host/legacy-composition.ts",
+    "@atomicstrata/llmwiki-core/compiler-sdk": "src/sdk/compiler-composition.ts",
+    "@atomicstrata/llmwiki-core/local-workflow-host": "src/local-workflow-host/index.ts",
+    "@atomicstrata/llmwiki-core/local-workflow-contracts": "src/local-workflow-host/shared-contracts.ts",
+    "@atomicstrata/llmwiki-local-workflows": "src/local-workflows/index.ts"
+  },
+  "internal": {
+    "note": "INTERNAL TEST SUPPORT: simulated host, host-side federation/originals/tiers implementation, fixture model and projects, demo wiring, and the detached surface over the simulated batch adapter. Must be unreachable (runtime AND type edges) from every public entry, and absent from every public artifact.",
+    "prefixes": [
+      "src/internal/"
+    ],
+    "modules": [
+      "src/commands/project/detached-commands.ts",
+      "src/commands/project/detached-fixture.ts",
+      "src/portable/compile/fixture-provider.ts",
+      "src/portable/detached/adapter.ts",
+      "src/portable/detached/backlog.ts",
+      "src/portable/detached/context.ts",
+      "src/portable/detached/custody.ts",
+      "src/portable/detached/files.ts",
+      "src/portable/detached/identity.ts",
+      "src/portable/detached/inputs.ts",
+      "src/portable/detached/journal.ts",
+      "src/portable/detached/open.ts",
+      "src/portable/detached/profile.ts",
+      "src/portable/detached/provider.ts",
+      "src/portable/detached/quota.ts",
+      "src/portable/detached/status.ts",
+      "src/portable/detached/steps.ts",
+      "src/portable/detached/units.ts",
+      "src/portable/federation/control.ts",
+      "src/portable/federation/group.ts",
+      "src/portable/federation/guarded-view.ts",
+      "src/portable/federation/host-admin.ts",
+      "src/portable/federation/host-route.ts",
+      "src/portable/federation/links.ts",
+      "src/portable/federation/overview-children.ts",
+      "src/portable/federation/overview-propose.ts",
+      "src/portable/federation/overview-review.ts",
+      "src/portable/federation/overview-text.ts",
+      "src/portable/federation/overview-verifier.ts",
+      "src/portable/federation/proof.ts",
+      "src/portable/federation/quality.ts",
+      "src/portable/federation/queue.ts",
+      "src/portable/federation/reads.ts",
+      "src/portable/federation/search.ts",
+      "src/portable/federation/service.ts",
+      "src/portable/federation/sessions.ts",
+      "src/portable/federation/store.ts",
+      "src/portable/host/memory-control.ts",
+      "src/portable/originals/access.ts",
+      "src/portable/originals/blob-store.ts",
+      "src/portable/originals/collect.ts",
+      "src/portable/originals/demo-host.ts",
+      "src/portable/originals/derivative.ts",
+      "src/portable/originals/export-stream.ts",
+      "src/portable/originals/host-route.ts",
+      "src/portable/originals/originals-store.ts",
+      "src/portable/originals/ranged-read.ts",
+      "src/portable/originals/retention.ts",
+      "src/portable/originals/staged-add.ts",
+      "src/portable/originals/staging.ts",
+      "src/portable/originals/stream-route.ts",
+      "src/portable/remote/host.ts",
+      "src/portable/remote/json-route.ts",
+      "src/portable/scale/catalog-store.ts",
+      "src/portable/scale/demo.ts",
+      "src/portable/scale/fixture.ts",
+      "src/portable/scale/host-dispatch.ts",
+      "src/portable/scoped/demo.ts",
+      "src/portable/scoped/fixture.ts",
+      "src/portable/scoped/scoped-project.ts",
+      "src/portable/scoped/scoped-state.ts",
+      "src/portable/scoped/scoped-store.ts",
+      "src/portable/store/memory-store.ts",
+      "src/portable/tiered/demo-host.ts",
+      "src/portable/tiered/host-route.ts",
+      "src/portable/tiered/promote.ts",
+      "src/portable/tiered/raw-tier.ts",
+      "src/portable/tiered/reviewed-tier.ts",
+      "src/portable/tiered/tiered-project.ts",
+      "src/portable/tiered/tiered-search.ts",
+      "src/portable/tiered/tiered-store.ts",
+      "src/portable/tiered/triage.ts"
+    ],
+    "forbiddenSymbols": [
+      "startSimulatedHost",
+      "SimulatedBatchAdapter",
+      "FixtureProvider",
+      "fixtureModelOverride",
+      "portable-fixture-v1",
+      "createScopedFixtureProject",
+      "runScopedJourney",
+      "FederationHostControl",
+      "FederationShardStore",
+      "openDetachedCompile",
+      "registerInternalProjectCommands",
+      "MemoryHostControl",
+      "MemoryProjectStore",
+      "CasOnlyProjectStore",
+      "CatalogProjectStore",
+      "ScopedProjectStore",
+      "TieredProjectStore",
+      "createScopedProject",
+      "restoreSourceRecord"
+    ],
+    "privatePackages": [
+      "llmwiki-internal-test-support",
+      "llmwiki-dev-backend",
+      "llmwiki-limited-isolation-backend"
+    ]
+  },
+  "surface": {
+    "note": "Every non-baseline export, CLI command and MCP tool must be allocated public-scaling-addition. Allocation is by name first, then by the export's origin module (first matching prefix). This tree's facades are their own source (internal equals public), so the gate checks allocation and baseline retention and does not derive them.",
+    "facades": {
+      "root": {
+        "internal": "src/index.ts",
+        "public": "src/index.ts"
+      },
+      "core": {
+        "internal": "src/core-index.ts",
+        "public": "src/core-index.ts"
+      },
+      "compilerCli": {
+        "internal": "src/compiler-cli.ts",
+        "public": "src/compiler-cli.ts"
+      }
+    },
+    "moduleAllocations": [
+      {
+        "prefix": "src/portable/",
+        "allocation": "public-scaling-addition",
+        "feature": "portable project path: local single-node store, contracts and optional hosted clients"
+      },
+      {
+        "prefix": "src/scale/",
+        "allocation": "public-scaling-addition",
+        "feature": "expected-scale profiles, gates and transitions"
+      },
+      {
+        "prefix": "src/sdk/catalog-facade",
+        "allocation": "public-scaling-addition",
+        "feature": "local catalog, GC, backup and restore"
+      },
+      {
+        "prefix": "src/sdk/scale-facade",
+        "allocation": "public-scaling-addition",
+        "feature": "scale archive, downgrade and project initialisation results"
+      },
+      {
+        "prefix": "@atomicstrata/llmwiki-core/compiler-sdk",
+        "allocation": "public-scaling-addition",
+        "feature": "whole-store compiler operations with host-supplied models"
+      },
+      {
+        "prefix": "src/compiler/batch/",
+        "allocation": "public-scaling-addition",
+        "feature": "local batch compile"
+      },
+      {
+        "prefix": "src/utils/provider",
+        "allocation": "public-scaling-addition",
+        "feature": "the ProviderOverride type a local-host model returns"
+      },
+      {
+        "prefix": "src/changes/",
+        "allocation": "internal-product-excluded",
+        "feature": "knowledge change tracking, history, notifications and briefs"
+      },
+      {
+        "prefix": "src/chat-import/",
+        "allocation": "internal-product-excluded",
+        "feature": "chat import"
+      },
+      {
+        "prefix": "src/chat-library/",
+        "allocation": "internal-product-excluded",
+        "feature": "chat library, citations and keychain key store"
+      },
+      {
+        "prefix": "src/chat-viewer/",
+        "allocation": "internal-product-excluded",
+        "feature": "chat viewer"
+      },
+      {
+        "prefix": "src/claims/",
+        "allocation": "internal-product-excluded",
+        "feature": "claim findings"
+      },
+      {
+        "prefix": "src/sources/attest",
+        "allocation": "internal-product-excluded",
+        "feature": "page source attestation"
+      },
+      {
+        "prefix": "src/sdk/core-types",
+        "allocation": "public-scaling-addition",
+        "feature": "SDK option types for expected scale at creation and batch compile"
+      },
+      {
+        "prefix": "src/catalog/",
+        "allocation": "public-scaling-addition",
+        "feature": "local catalog reads and materialisation"
+      },
+      {
+        "prefix": "src/commands/catalog",
+        "allocation": "public-scaling-addition",
+        "feature": "catalog CLI handlers"
+      },
+      {
+        "prefix": "src/commands/project/",
+        "allocation": "public-scaling-addition",
+        "feature": "portable project CLI handlers (local store and hosted clients)"
+      },
+      {
+        "prefix": "src/commands/scale",
+        "allocation": "public-scaling-addition",
+        "feature": "scale and init CLI handlers"
+      },
+      {
+        "prefix": "src/commands/compile",
+        "allocation": "public-scaling-addition",
+        "feature": "batch compile report handler"
+      },
+      {
+        "prefix": "src/commands/attest",
+        "allocation": "internal-product-excluded",
+        "feature": "page source attestation"
+      },
+      {
+        "prefix": "src/commands/changes",
+        "allocation": "internal-product-excluded",
+        "feature": "knowledge change tracking"
+      },
+      {
+        "prefix": "src/commands/claims",
+        "allocation": "internal-product-excluded",
+        "feature": "claim findings"
+      },
+      {
+        "prefix": "src/commands/chats/",
+        "allocation": "internal-product-excluded",
+        "feature": "chat library"
+      },
+      {
+        "prefix": "src/commands/view-library",
+        "allocation": "internal-product-excluded",
+        "feature": "chat library application and its composition seam"
+      },
+      {
+        "prefix": "src/sdk/internal-wiki",
+        "allocation": "internal-product-excluded",
+        "feature": "internal SDK augmentation: source attestation on the facade object"
+      }
+    ],
+    "nameAllocations": {
+      "InitWikiOptions": {
+        "allocation": "public-scaling-addition",
+        "feature": "expected wiki scale at creation (Root ruling)"
+      },
+      "initWikiCore": {
+        "allocation": "public-scaling-addition",
+        "feature": "expected wiki scale at creation (Root ruling)"
+      },
+      "initWiki": {
+        "allocation": "public-scaling-addition",
+        "feature": "expected wiki scale at creation (Root ruling)"
+      }
+    },
+    "cli": {
+      "sources": [
+        "src/cli.ts",
+        "src/cli/"
+      ],
+      "scalingAdditions": [
+        "catalog",
+        "init",
+        "project",
+        "scale"
+      ],
+      "excluded": {
+        "attest": "internal-product-excluded",
+        "changes": "internal-product-excluded",
+        "chats": "internal-product-excluded",
+        "claims": "internal-product-excluded",
+        "history": "internal-product-excluded"
+      }
+    },
+    "mcp": {
+      "sources": [
+        "src/mcp/"
+      ],
+      "scalingAdditionPrefixes": [
+        "portable_"
+      ],
+      "excluded": {
+        "claim_findings": "internal-product-excluded",
+        "get_claim_finding": "internal-product-excluded",
+        "compare_change": "internal-product-excluded",
+        "get_change": "internal-product-excluded",
+        "recent_changes": "internal-product-excluded"
+      }
+    },
+    "shapePolicies": {
+      "note": "Named library-owned OUTPUT types for the shape check's reverse probe (scripts/public-boundary/shapes.mjs), validated by scripts/public-boundary/shape-policies.mjs against the named facade and the type's single declaration. The two policies below (core WikiCore, root Wiki; additions compileReport, scale and catalog) were accepted by Root at the checkpoint-13 review within their stated scope. That acceptance is narrow: it is not universal source compatibility, generic types remain counted but unprobed, and it does not qualify the whole SDK or the release. COMPATIBILITY LIMIT (kept in each policy and in CHANGELOG.md): a caller that constructs a complete WikiCore or Wiki value itself (a hand-written mock) or implements either interface must add the three members.",
+      "libraryOutputTypes": [
+        {
+          "facade": "core",
+          "name": "WikiCore",
+          "declaration": {
+            "module": "src/sdk/core-types.ts",
+            "name": "WikiCore"
+          },
+          "reason": "Library-produced SDK facade: callers receive it from createWikiCore (src/sdk/core.ts) and do not construct it. COMPATIBILITY LIMIT: this protects callers that receive the object from the factory; a caller that constructs a complete value of this type itself (a hand-written mock) or implements the interface must add the three members (stated in CHANGELOG.md).",
+          "allowedAdditions": [
+            "compileReport",
+            "scale",
+            "catalog"
+          ]
+        },
+        {
+          "facade": "root",
+          "name": "Wiki",
+          "declaration": {
+            "module": "src/sdk/types.ts",
+            "name": "Wiki"
+          },
+          "reason": "Library-produced SDK facade: callers receive it from createWiki (src/sdk/wiki.ts); it gains exactly WikiCore's three additions by inheritance. COMPATIBILITY LIMIT: this protects callers that receive the object from the factory; a caller that constructs a complete value of this type itself (a hand-written mock) or implements the interface must add the three members (stated in CHANGELOG.md).",
+          "allowedAdditions": [
+            "compileReport",
+            "scale",
+            "catalog"
+          ]
+        }
+      ]
+    }
+  },
+  "publicRelease": {
+    "note": "The PUBLIC release composition: this tree's own entries. No internal product feature or internal test support exists in this tree; the gate proves none is reachable and none ships.",
+    "stageDir": ".public-release/stage",
+    "entries": {
+      "root:cli": "src/cli.ts",
+      "root:sdk": "src/index.ts",
+      "core:index": "src/core-index.ts",
+      "core:compiler-cli": "src/compiler-cli.ts",
+      "core:compiler-legacy-workflows": "src/local-workflow-host/legacy-composition.ts",
+      "core:compiler-sdk": "src/sdk/compiler-composition.ts",
+      "core:local-workflow-host": "src/local-workflow-host/index.ts",
+      "core:local-workflow-contracts": "src/local-workflow-host/shared-contracts.ts",
+      "local-workflows:index": "src/local-workflows/index.ts"
+    },
+    "inRepositoryPackages": [
+      "@atomicstrata/llmwiki-core",
+      "@atomicstrata/llmwiki-local-workflows",
+      "llm-wiki-compiler"
+    ]
+  },
+  "graph": {
+    "note": "Module-loading constructs the import graph cannot follow are refused unless one entry here names the file, the construct AND the exact source expression (whitespace collapsed). Each is present in the public baseline and was reviewed as written. The gate pins what the source says; it does not prove what the expression loads at run time.",
+    "allowedConstructs": [
+      {
+        "file": "src/cli.ts",
+        "construct": "createRequire",
+        "expression": "import { createRequire } from \"module\";",
+        "reason": "used once, for the literal require(\"../package.json\") that reads the package version; that literal require is followed as a graph edge"
+      },
+      {
+        "file": "src/cli/environment.ts",
+        "construct": "createRequire",
+        "expression": "import { createRequire } from \"node:module\";",
+        "reason": "resolves the dotenv package for CLI environment loading"
+      },
+      {
+        "file": "src/commands/export.ts",
+        "construct": "createRequire",
+        "expression": "import { createRequire } from \"module\";",
+        "reason": "used for the one data read below"
+      },
+      {
+        "file": "src/commands/export.ts",
+        "construct": "require",
+        "expression": "require(location)",
+        "reason": "reads a project's package.json at a path the export computes; a data read whose target the gate cannot bind"
+      },
+      {
+        "file": "src/commands/product/host.ts",
+        "construct": "dynamic-import",
+        "expression": "import(pathToFileURL(path.resolve(configured)).href)",
+        "reason": "operator extension loading: imports the file named by LLMWIKI_PROVIDER_INVOCATION_MODULE. The gate cannot bind that target and does not claim it is outside the repository; it is an operator-controlled input"
+      },
+      {
+        "file": "src/utils/require-on-use.ts",
+        "construct": "createRequire",
+        "expression": "import { createRequire } from \"node:module\";",
+        "sourceSha256": "86a03ee018990faa3964ab3d450759f3874fbdfb02759c0cb896fbc8c7c9e6c1",
+        "reason": "unchanged public 3811599e source: the canonical synchronous on-demand loader requireOnUse. Admitted ONLY while the whole module has this exact SHA-256, because its callers are traced by on-demand-loads.mjs: each literal load becomes a runtime edge or outside package resolved from this module's location, and every other use of the loader is a graph problem"
+      },
+      {
+        "file": "src/utils/kernel-start-time.ts",
+        "construct": "createRequire",
+        "expression": "import { createRequire } from \"node:module\";",
+        "sourceSha256": "92a19f5d03aef4cd30e32020e17a7aec2981f9f3a17f66166b6131d8ea443f49",
+        "reason": "unchanged public 3811599e source: the upstream literal createRequire(import.meta.url)(\"bun:ffi\") route that binds libc sysctl under Bun on macOS and otherwise returns undefined so callers fall back to ps. SOURCE-METADATA allocation only, admitted ONLY while the whole module has this exact SHA-256; it does not qualify or approve native, FFI, ABI or runtime behaviour, which stay held"
+      }
+    ]
+  },
+  "internalProducts": {
+    "note": "Features of the internal product line that this tree does not contain: knowledge-change history, claims, source attestation, the chat products and their CLI, MCP and viewer surfaces. None of these modules exists here and the core has no seam to them. The prefixes are kept so the gate proves it: a module under one of them that becomes reachable from a public entry fails the graph check, and one named in a shipped source map fails the artifact check. coreEmbedded stays empty; an entry added there is a pending ruling and fails the gate.",
+    "prefixes": [
+      "src/changes/",
+      "src/chat-import/",
+      "src/chat-library/",
+      "src/chat-viewer/",
+      "src/chat-workspace/",
+      "src/claims/",
+      "src/cli/attest-commands",
+      "src/cli/changes-commands",
+      "src/cli/chats-commands",
+      "src/cli/claims-commands",
+      "src/cli/internal-product-commands",
+      "src/commands/attest",
+      "src/commands/changes",
+      "src/commands/chats/",
+      "src/commands/claims",
+      "src/commands/view-library.ts",
+      "src/mcp/change-tools",
+      "src/mcp/claim-tools",
+      "src/sdk/internal-wiki",
+      "src/sources/attest",
+      "src/viewer/knowledge-changes.ts"
+    ],
+    "coreEmbedded": {
+      "allocation": "pending-root-decision",
+      "modules": {}
+    }
+  },
+  "publicDependencies": {
+    "note": "The frozen dependency set of each public package. Every entry equals the public baseline's field and range, or is an approvedAdditions entry with a reason, or is an in-repository package pinned to releaseVersion. The staged public manifests are generated from this object. In this tree the three public package.json files and the lockfile already carry releaseVersion (1.6.0-rc.2), a PROPOSED prerelease identity. A version is not publication authority.",
+    "releaseVersion": "1.6.0-rc.2",
+    "baselineVersion": "1.5.0",
+    "packages": {
+      "llm-wiki-compiler": {
+        "dependencies": {
+          "@anthropic-ai/claude-agent-sdk": "^0.3.163",
+          "@anthropic-ai/sdk": "^0.101.0",
+          "@atomicstrata/llmwiki-core": "1.6.0-rc.2",
+          "@atomicstrata/llmwiki-local-workflows": "1.6.0-rc.2",
+          "@modelcontextprotocol/sdk": "^1.29.0",
+          "@mozilla/readability": "^0.6.0",
+          "ajv": "^8.20.0",
+          "canonicalize": "^3.0.0",
+          "chokidar": "^4.0.0",
+          "commander": "^13.0.0",
+          "dotenv": "^17.4.0",
+          "js-yaml": "^4.3.0",
+          "jsdom": "^25.0.0",
+          "markdown-it": "^14.3.0",
+          "openai": "^6.42.0",
+          "p-limit": "^6.0.0",
+          "pdf-parse": "^2.4.5",
+          "sanitize-html": "^2.17.6",
+          "turndown": "^7.2.0",
+          "youtube-transcript": "^1.3.1",
+          "zod": "^4.4.3"
+        },
+        "peerDependencies": {
+          "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
+          "@smithy/node-http-handler": "^4.12.1"
+        }
+      },
+      "@atomicstrata/llmwiki-core": {
+        "dependencies": {
+          "@anthropic-ai/claude-agent-sdk": "^0.3.163",
+          "@anthropic-ai/sdk": "^0.101.0",
+          "@mozilla/readability": "^0.6.0",
+          "ajv": "^8.20.0",
+          "canonicalize": "^3.0.0",
+          "chokidar": "^4.0.0",
+          "js-yaml": "^4.3.0",
+          "jsdom": "^25.0.0",
+          "markdown-it": "^14.3.0",
+          "openai": "^6.42.0",
+          "p-limit": "^6.0.0",
+          "pdf-parse": "^2.4.5",
+          "sanitize-html": "^2.17.6",
+          "turndown": "^7.2.0",
+          "youtube-transcript": "^1.3.1",
+          "zod": "^4.4.3"
+        },
+        "peerDependencies": {
+          "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
+          "@smithy/node-http-handler": "^4.12.1"
+        }
+      },
+      "@atomicstrata/llmwiki-local-workflows": {
+        "peerDependencies": {
+          "@atomicstrata/llmwiki-core": "1.6.0-rc.2"
+        }
+      }
+    },
+    "approvedAdditions": []
+  },
+  "artifact": {
+    "note": "What a staged public tarball may contain beyond its built code. Approved package exports and bin maps are the public baseline's, read from baseline.json. This tree keeps the public baseline's viewer assets and theme build; the internal branch's bundled @atomicstrata/themes migration is intentionally not carried, so no third-party asset bundle is expected and none is allowed.",
+    "viewerAssetPrefix": "dist/viewer/assets/",
+    "bundledThirdPartyAssets": [
+      {
+        "prefix": "dist/viewer/assets/atomicstrata-themes/",
+        "package": "@atomicstrata/themes",
+        "allocation": "excluded-not-carried",
+        "reason": "the internal branch's themes migration is not part of this candidate; any file under this prefix in a tarball fails the artifact check"
+      }
+    ],
+    "releaseDocuments": {
+      "note": "The documents the root package ships, each with its provenance. This tree's README, CHANGELOG, ARCHITECTURE and skill are the reviewed current public documents and are staged from the working tree; the licence is the public baseline's. The stage records each source's hash, and the gate fails when a source or its staged copy changes.",
+      "fromWorkingTree": [
+        "README.md",
+        "CHANGELOG.md",
+        "ARCHITECTURE.md",
+        "skills/llmwiki"
+      ],
+      "fromBaseline": [
+        "LICENSE"
+      ]
+    }
+  },
+  "openReleaseItems": {
+    "note": "Everything that keeps this tree from being a release candidate. `check` and `kinds` name the mechanism finding an item produces, when it produces one; an item with `check: null` is a prerequisite or decision no mechanism measures. The gate reports its mechanism checks and this list SEPARATELY: mechanisms can all pass while the release is not ready. The default gate run exits non-zero while any item is open. An item is removed only by the work or ruling it names, never to make the gate pass. Each item has a `category`: code-qualification (work or evidence still owed on the code), model-qualification (a real-model result still owed) or publication-approval (a release decision or its execution prerequisite, not a code defect).",
+    "items": []
+  },
+  "deferredFromSource": {
+    "note": "Features the internal branch's public composition carries that this candidate deliberately does not (Root ruling, checkpoint 8). They are recorded debt, not parity: this candidate does not claim the full source roadmap.",
+    "items": [
+      {
+        "feature": "compile --dry-run / compileDryRun",
+        "reason": "built on the source branch's classic-compile contract (completed-empty extraction, rebuild selection); this tree keeps the public baseline's compile contract"
+      },
+      {
+        "feature": "compile --rebuild-source / rebuildSources",
+        "reason": "same: it changes the classic compile's change detection and run identity"
+      },
+      {
+        "feature": "batch compile under --no-pages-limit",
+        "reason": "the public baseline's concept withdrawal is not implemented for a batch run; the batch driver refuses the option before any effect"
+      }
+    ]
+  }
+}

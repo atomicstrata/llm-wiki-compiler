@@ -65,36 +65,27 @@
 import { open, mkdir, rename, stat } from "fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "path";
-import { RELATIONS_FILE, MAX_RELATION_RECORD_BYTES, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
+import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
 import type { OperationBinding } from "../utils/operation-binding.js";
 import { withOrdinaryMutationLock as underLock } from "../operation-bundles/with-mutation-lock.js";
-import type { EntityId, ProfilePack, RelationTypeDef } from "../profile/types.js";
-import type { CitationRef, RelationRef } from "./types.js";
+import type { ProfilePack } from "../profile/types.js";
+import type { RelationRef } from "./types.js";
 import { RelationEndpointError, RelationStoreFullError } from "./types.js";
-import { mintRelationId } from "./ulid.js";
-import { canonicalEndpoints, relationContentHash } from "./digest.js";
 import { headerLine, serializeRecord, resolveGraphDir, openStoreFileAppend } from "./store-record.js";
+import { buildRelationEvent, buildRelationRef, updatedRelationInput, type AppendRelationInput, type UpdateRelationPatch } from "./relation-build.js";
+import { diskRelationGraphReads, type RelationGraphReads } from "./graph-reads.js";
 import { readRelationRecordsFrom, readRelationsFrom } from "./store-read.js";
-import { validateRelationAttributes, validateRelationEndpoints, validateRelationEvidence, validateRelationAgainstProfile } from "./relation-contract.js";
-import { validateArtifactRefsAgainstProfile } from "../profile/artifact-ref-validate.js";
+import { validateRelationAgainstProfile } from "./relation-contract.js";
 import {
   appendEventLockedFrom, diskEventWriteSources, preflightEventAppendFrom, type AppendEventInput, type EventWriteSources,
 } from "../events/store.js";
 import { prepareEventStoreForAppendFrom } from "../events/store-read.js";
-import { appendToGraphLeaf, diskGraphStoreReads, type GraphStoreAppend, type GraphStoreReads } from "../utils/jsonl-store.js";
-import type { EventType } from "../events/types.js";
+import { appendToGraphLeaf, type GraphStoreAppend } from "../utils/jsonl-store.js";
 
-/** The caller-supplied content of a new relation (id + hash are derived). */
-export interface AppendRelationInput {
-  type: string;
-  from: EntityId;
-  to: EntityId;
-  attributes?: Record<string, unknown>;
-  evidence?: CitationRef[];
-}
+export { buildRelationRef, type AppendRelationInput, type UpdateRelationPatch } from "./relation-build.js";
 
 /** The relation store's graph: its confined read and its handle-held append. */
-export interface RelationGraphStore extends GraphStoreReads, GraphStoreAppend {}
+export interface RelationGraphStore extends RelationGraphReads, GraphStoreAppend {}
 
 /**
  * Everything {@link appendRelationLockedFrom} reads and writes: this store's
@@ -116,7 +107,7 @@ export interface RelationAppendSources {
  */
 export function diskRelationGraphStore(root: string): RelationGraphStore {
   return {
-    ...diskGraphStoreReads(root),
+    ...diskRelationGraphReads(root),
     appendStore: (plan) => appendToGraphLeaf({
       resolveDir: () => resolveGraphDir(root), // throws on symlink escape (DIR defense)
       openAppend: (file) => openStoreFileAppend(file), // throws on symlink leaf (LEAF defense)
@@ -128,118 +119,6 @@ export function diskRelationGraphStore(root: string): RelationGraphStore {
 /** LOCAL DISK. The create's sources for the project at `root`: this store's graph and the event store's write sources. In no package index. */
 export function diskRelationAppendSources(root: string): RelationAppendSources {
   return { graph: diskRelationGraphStore(root), events: diskEventWriteSources(root) };
-}
-
-/** An in-place attribute/evidence patch applied under an existing relation id. */
-export interface UpdateRelationPatch {
-  attributes?: Record<string, unknown>;
-  evidence?: CitationRef[];
-}
-
-/** Look up a relation-type def, failing closed if the type is undeclared. */
-function relationDef(profile: ProfilePack, type: string): RelationTypeDef {
-  const def = profile.relations?.[type];
-  if (!def) {
-    throw new RelationEndpointError(`unknown relation type '${type}'`);
-  }
-  return def;
-}
-
-/**
- * Assert a relation's CANONICAL endpoints satisfy the relation-type def via the
- * SHARED {@link validateRelationEndpoints}, throwing on any violation. Called
- * AFTER canonicalization so the WRITE enforces exactly what the READ
- * ({@link validateRelationAgainstProfile}) re-validates on the same stored bytes —
- * for a symmetric type whose `from`-type sorts after its `to`-type, the swap can
- * never produce a record the read surfaces then flag invalid.
- */
-function assertCanonicalEndpoints(def: RelationTypeDef, from: EntityId, to: EntityId, type: string): void {
-  const reasons = validateRelationEndpoints(def, from, to);
-  if (reasons.length > 0) {
-    throw new RelationEndpointError(`relation '${type}' ${reasons.join("; ")}`);
-  }
-}
-
-/**
- * Assert a relation's attributes satisfy the relation-type def's declared
- * contract — required-attribute PRESENCE AND each declared attribute's
- * type/enum/min/max (the SAME field contract entity fields enforce, via
- * {@link validateRelationAttributes}), PLUS the profile-aware artifactRef scope
- * check ({@link validateArtifactRefsAgainstProfile}). Any violation fails closed
- * BEFORE any write, so a relation whose attribute mismatches its declared type —
- * or carries an undeclared/out-of-scope artifact ref — is never appended.
- */
-function assertAttributesValid(
-  profile: ProfilePack,
-  def: RelationTypeDef,
-  attributes: Record<string, unknown>,
-  type: string,
-): void {
-  const violations = [
-    ...validateRelationAttributes(def, attributes),
-    ...validateArtifactRefsAgainstProfile(profile, def.attributes ?? {}, attributes),
-  ];
-  if (violations.length > 0) {
-    throw new RelationEndpointError(`relation '${type}' has invalid attributes: ${violations.join(" ")}`);
-  }
-}
-
-/**
- * Assert a relation's `evidence` citations satisfy the {@link validateRelationEvidence}
- * contract — each a plain object carrying ONLY `sourcePath`/`sourceSpan`, with a
- * SAFE project-relative `sourcePath` and a string `sourceSpan` (within caps). Any
- * violation fails closed BEFORE any write, so the unvalidated, path-bearing
- * evidence side channel (which feeds the content hash) can never land on disk —
- * the SAME fail-closed boundary attributes/endpoints get, mirrored on the read
- * side by {@link validateRelationAgainstProfile}.
- */
-function assertEvidenceValid(evidence: CitationRef[] | undefined, type: string): void {
-  const violations = validateRelationEvidence(evidence);
-  if (violations.length > 0) {
-    throw new RelationEndpointError(`relation '${type}' has invalid evidence: ${violations.join(" ")}`);
-  }
-}
-
-/**
- * Reject a relation whose serialized on-disk record exceeds
- * {@link MAX_RELATION_RECORD_BYTES}, so attacker-controlled attribute/evidence
- * size cannot grow one record unbounded (nor reach the per-store cap with one
- * line). Throws {@link RelationEndpointError} BEFORE any write.
- */
-function assertRecordWithinCap(ref: RelationRef): void {
-  const bytes = Buffer.byteLength(serializeRecord(ref), "utf8");
-  if (bytes > MAX_RELATION_RECORD_BYTES) {
-    throw new RelationEndpointError(
-      `relation '${ref.type}' record ${bytes} bytes exceeds the ${MAX_RELATION_RECORD_BYTES}-byte cap`,
-    );
-  }
-}
-
-/**
- * Build the {@link RelationRef}: canonicalize symmetric endpoints FIRST, then
- * validate the CANONICAL endpoints + required attributes + evidence citations
- * against the relation-type def, mint the id (or reuse `existingId` for an update), and
- * compute the content hash. Canonicalize-THEN-validate (FIX #1) means the WRITE
- * enforces exactly what the READ re-validates, so a symmetric edge whose
- * `from`-type sorts after its `to`-type is never written swapped-then-rejected.
- * The serialized record size is capped LAST. NOTHING is written here —
- * validation throwing leaves the store untouched.
- */
-export function buildRelationRef(
-  profile: ProfilePack,
-  input: AppendRelationInput,
-  existingId?: RelationRef["id"],
-): RelationRef {
-  const def = relationDef(profile, input.type);
-  const { from, to } = canonicalEndpoints(input.from, input.to, def.direction);
-  assertCanonicalEndpoints(def, from, to, input.type);
-  const attributes = input.attributes ?? {};
-  assertAttributesValid(profile, def, attributes, input.type);
-  assertEvidenceValid(input.evidence, input.type);
-  const content = { type: input.type, from, to, attributes, evidence: input.evidence };
-  const ref: RelationRef = { id: existingId ?? mintRelationId(), ...content, contentHash: relationContentHash(content) };
-  assertRecordWithinCap(ref);
-  return ref;
 }
 
 /**
@@ -279,32 +158,6 @@ function* relationChunks(existing: number, ref: RelationRef, binding?: Operation
   }
   if (header) yield header;
   yield serializeRecord(ref, binding);
-}
-
-/**
- * Build the relation audit event INPUT (no write). Separating the build from the
- * append lets the caller size+store-full PRE-FLIGHT the EXACT event it will later
- * append (the same object, same `at` timestamp), so the relation mutation can fail
- * CLOSED — with nothing committed — when the trailing audit append would exceed the
- * per-record cap or drive the event store past {@link MAX_EVENT_STORE_BYTES}.
- *
- * SIZE-SAFE (no caller-inflatable payload): the payload records ONLY bounded,
- * derived identifiers — the minted `rel_<ULID>` id, the declared `relType`, and
- * the two canonical `EntityId` endpoints. It does NOT serialize the caller's
- * `attributes`/`evidence` (those are size-capped on the relation RECORD via
- * {@link buildRelationRef}'s {@link MAX_RELATION_RECORD_BYTES} check, and never
- * reach this event). The remaining store-full window is the WHOLE-FILE event cap,
- * which the caller's {@link preflightEventAppend} now closes BEFORE the relation
- * record commits.
- */
-function buildRelationEvent(type: EventType, ref: RelationRef, decision?: string): AppendEventInput {
-  return {
-    type,
-    origin: "sdk",
-    payload: { id: ref.id, relType: ref.type, from: ref.from, to: ref.to },
-    decision,
-    at: new Date().toISOString(),
-  };
 }
 
 /**
@@ -371,6 +224,8 @@ export async function appendRelationLockedFrom(
   input: AppendRelationInput,
   decision?: string,
 ): Promise<RelationRef> {
+  const segmented = await sources.graph.segmentedRelations?.();
+  if (segmented) return segmented.append(sources.events, profile, input, decision); // local-indexed: point lookups
   const ref = buildRelationRef(profile, input); // throws before any write
   await prepareEventStoreForAppendFrom(sources.events); // FIX F2 pre-flight (under the held lock): REPAIR a torn tail, else fail closed on a tampered/symlinked/corrupt audit store
   const { relations } = await readRelationsFrom(sources.graph); // under the caller's lock
@@ -444,19 +299,14 @@ export async function updateRelationLockedFrom(
   id: RelationRef["id"],
   patch: UpdateRelationPatch,
 ): Promise<RelationRef> {
+  const segmented = await sources.graph.segmentedRelations?.();
+  if (segmented) return segmented.update(sources.events, profile, id, patch); // local-indexed: point lookups
   const { relations } = await readRelationsFrom(sources.graph); // re-read INSIDE the lock
   const existing = relations.find((rel) => rel.id === id);
   if (!existing) {
     throw new RelationEndpointError(`no relation with id '${id}' to update`);
   }
-  const input: AppendRelationInput = {
-    type: existing.type,
-    from: existing.from,
-    to: existing.to,
-    attributes: patch.attributes ?? existing.attributes,
-    evidence: patch.evidence ?? existing.evidence,
-  };
-  const ref = buildRelationRef(profile, input, id);
+  const ref = buildRelationRef(profile, updatedRelationInput(existing, patch), id);
   await prepareEventStoreForAppendFrom(sources.events); // FIX F2 pre-flight (under the held lock): REPAIR a torn tail, else fail closed on a tampered/symlinked/corrupt audit store
   const event = buildRelationEvent("relation-update", ref);
   await preflightEventAppendFrom(sources.events, event); // size + store-full pre-flight BEFORE the superseding record commits: fails closed with relations.jsonl untouched
@@ -503,7 +353,7 @@ export interface RelationStoreRewrite {
 }
 
 /** The relation store as the compaction reads and rewrites it. */
-export interface RelationCompactionGraph extends GraphStoreReads {
+export interface RelationCompactionGraph extends RelationGraphReads {
   /** Confine and create the graph dir and size the store leaf; rejects on a symlink escape. */
   prepareRewrite(): Promise<RelationStoreRewrite>;
 }
@@ -517,7 +367,7 @@ export interface RelationCompactionSources {
 /** LOCAL DISK. The compaction's sources for the project at `root`, built per call; no I/O until asked. In no package index. */
 export function diskRelationCompactionSources(root: string): RelationCompactionSources {
   return {
-    graph: { ...diskGraphStoreReads(root), prepareRewrite: () => prepareDiskRewrite(root) },
+    graph: { ...diskRelationGraphReads(root), prepareRewrite: () => prepareDiskRewrite(root) },
     events: diskEventWriteSources(root),
   };
 }
@@ -629,6 +479,9 @@ export async function compactRelations(root: string, profile: ProfilePack): Prom
 export async function compactRelationsLockedFrom(
   sources: RelationCompactionSources, profile: ProfilePack,
 ): Promise<CompactionResult> {
+  if (await sources.graph.segmentedRelations?.()) {
+    throw new Error("relation compaction is unavailable on a local-indexed project: the segmented log has no single-file cap, and its authoritative history is never rewritten");
+  }
   // Bound history is recovery authority, including superseded records. The
   // legacy latest-per-id compactor cannot safely discard or unbind it.
   const { records } = await readRelationRecordsFrom(sources.graph);

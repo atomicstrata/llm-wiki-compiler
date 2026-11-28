@@ -1,0 +1,154 @@
+---
+title: "llmwiki init, scale and catalog - Expected Scale on One Machine"
+sidebarTitle: "Scale and catalog"
+description: "llmwiki init, scale and catalog record how large you expect a local wiki to become, prepare a matching on-disk layout, and inspect or maintain the paged catalog of an indexed project. Everything runs on this machine."
+---
+
+These commands are optional. A small wiki needs none of them: `llmwiki ingest`, `llmwiki compile`, `llmwiki query` and `llmwiki view` work as they always have on a project with no expected-scale record.
+
+Use them when you expect a project to grow well beyond a few hundred documents and want its on-disk layout prepared before you ingest.
+
+<Note>
+An expected scale is a planning target, not verified capacity. The profiles choose between single-machine layouts; their bounds are policy limits. No performance or capacity figure is claimed, and choosing a larger profile provisions nothing beyond files on this machine. No daemon, container, cloud service or model call is involved.
+</Note>
+
+## Create a project with an expected scale
+
+```bash
+llmwiki init --expected-size 256MiB
+llmwiki init --expected-documents 5000
+```
+
+`init` creates a local project in the current directory. Give `--expected-size`, `--expected-documents` or both; a missing one is derived. Sizes accept decimal (`KB`, `MB`, `GB`, `TB`) and binary (`KiB`, `MiB`, `GiB`, `TiB`) units. Without either flag no scale record is written and the project is an ordinary one.
+
+The current planning policy allows up to 400 documents / 25 MiB for `local-standard`, 3,000 / 187.5 MiB for `local-large`, and 10,000 / 625 MiB for `local-indexed`. Both the document and source-byte limits must fit; a missing estimate is derived at 64 KiB per document. These are policy limits, not measured capacity. An estimate beyond the indexed limits is recorded as unavailable and blocks mutations; inspect the plan with `scale preview` before changing an existing project.
+
+`llmwiki quickstart <source>` accepts the same two flags and sets the expected scale before anything is ingested.
+
+On an existing project whose indexed authority cannot be trusted (the scale record is unreadable, or missing while `.llmwiki/indexed` exists), `init` refuses with `scale_state_unreadable` even without an estimate, and so do `scale set`, `scale prepare`, `scale preview` and quickstart's estimate step. Nothing replaces the record automatically: restore `.llmwiki/scale.json` by hand. `init` may create its ordinary directories before it reaches that check.
+
+## Change, inspect or resume the expected scale
+
+| Command | What it does |
+|---|---|
+| `llmwiki scale status` | Report the expected scale, the active layout, readiness and any blocked reason. Read-only. |
+| `llmwiki scale preview --size <size>` | Show what `scale set` with this estimate would do: the plan, whether the active layout changes, the steps, free space and the measured project size. Read-only. |
+| `llmwiki scale set --size <size>` | Record a new expected scale and prepare the layout it plans for. `--no-prepare` records the request and leaves preparation pending. `--expect-revision <n>` refuses unless the record's revision is exactly `n`. |
+| `llmwiki scale prepare` | Resume or re-verify a pending transition, or prepare a requested capability on an indexed project. |
+
+A lower estimate given to `scale set` never scales a prepared layout down. That is a separate, explicit operation (below).
+
+### Status readiness
+
+`scale status` reads the scale record once and reports what admission sees for it. Besides `unconfigured`, `ready`, `preparing`, `parked` and `unavailable`, it can report:
+
+| Readiness | Meaning | Record and plan |
+|---|---|---|
+| `downgrading` | A scale-down needs same-plan recovery, even if the record no longer shows a pending scale-down. | Kept |
+| `unreadable` | The record cannot be read, or it is missing while indexed stores exist. | `null` |
+| `restoring` | An indexed-authority restore holds the project. Wait for it, or re-run the same `llmwiki catalog restore`. New in this release candidate. | Kept |
+
+`reason` explains each of these. Status is advisory: it takes no lock, writes nothing, does not run recovery and does not authorize a change. Every changing command checks again under the project lock. Status reports only scale admission, not general journal or operation health. JSON output keeps version 1 and its fields; a blocked status is still `ok: true` and exits `3`. A client that handles readiness with a closed list of the earlier values must accept `restoring`.
+
+All of these accept `--json` for one versioned JSON envelope on stdout.
+
+### While a transition is unfinished
+
+While a scale transition is unfinished or parked, or the estimate needs a backend this build does not provide, commands that change the project refuse: `ingest`, `compile`, source removal and the other mutations wait until the transition settles. Reads can continue through authorities that are ready. A read that depends on a capability still being prepared refuses; for example, custom-profile page listings wait for the typed entity catalog to be ready. Run `llmwiki scale status` to see the reason and `llmwiki scale prepare` to resume.
+
+### Ingest while another operation is running
+
+`llmwiki ingest`, the SDK's source delete and `llmwiki schema init` take the project lock on every project. If a compile, a `watch` rebuild or a scale transition still holds it after the lock's bounded wait, they stop with a project-busy message. Nothing was written; run the command again when the other operation has finished.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Ready. |
+| `2` | Refused; nothing changed. |
+| `3` | Blocked: a transition is pending, parked or unavailable, or status reports `downgrading`, `unreadable` or `restoring`. |
+| `4` | A scale-down stopped part-way; apply the same saved plan again to resume. |
+
+## Scale down explicitly
+
+```bash
+llmwiki scale downgrade --target local-standard --size 10MiB --out plan.json
+llmwiki scale downgrade --apply plan.json --readers-offline
+```
+
+The first command previews and saves a plan. The second applies exactly that plan; run it from a new process. Every current indexed authority is exported to the ordinary files and verified, the prior files and the indexed stores (batch run reports included) are retained under `.llmwiki/scale-downgrade/`, and the smaller layout is activated last. Anything the smaller layout cannot represent is reported as a blocker and nothing is changed.
+
+`--readers-offline` is your assertion that no other tool, and no llmwiki build without reader leases, is reading the project while the scale-down runs. It is required to apply.
+
+`llmwiki scale archive list` and `llmwiki scale archive report <name> <runId>` read what a scale-down retained.
+
+### Cancel a scale-down before it moves anything
+
+```bash
+llmwiki scale downgrade --cancel plan.json --readers-offline
+```
+
+An interrupted or refused scale-down leaves the project fenced: ordinary commands refuse until it finishes. If it has not moved anything yet, `--cancel` with the same plan returns the project to its current indexed layout instead of finishing:
+
+- It first proves nothing moved: the indexed stores are still exactly the plan's, every file the scale-down would replace is still in place, nothing was archived or installed, and the evidence directory holds only what a scale-down writes. If anything is uncertain it refuses and changes nothing.
+- A file you edited outside the files the scale-down replaces (a source, for example) is kept as it is. That edit is often why a scale-down refuses to finish.
+- The estimate: if the scale-down had already fenced the project, the smaller estimate it planned stays on the record (`estimate: "planned-kept"`), not the earlier one; set another with `llmwiki scale set` if you want it changed. If it was interrupted before fencing, the cancel writes no record and the estimate is unchanged (`estimate: "unchanged"`). The result also shows the estimate on the record when the command finished; run again later, that value may reflect changes made since.
+- Nothing is deleted. The plan, every staging attempt and the cancel's own records stay under `.llmwiki/scale-downgrade/`, and a cancelled plan is never applied.
+- It needs `--readers-offline`, like `--apply`. If it is interrupted, run the same command again: it finishes or refuses, never guesses. If it reports that the cancel is unproven, the record moved on before the cancel recorded its receipt; nothing is changed, so inspect the project before doing anything else.
+
+`--cancel` is not an undo. Once a scale-down has started installing the smaller layout's files, it refuses, and the only way forward is `--apply` with the same plan.
+
+## The catalog of an indexed project
+
+The largest local layout (`local-indexed`) keeps a durable paged catalog of pages and sources, so listings read one bounded page at a time.
+
+| Command | What it does |
+|---|---|
+| `llmwiki catalog status` | Counts and freshness. Bounded; changes no store. |
+| `llmwiki catalog sync` | Reconcile the catalog with the files, under the project lock. This is an explicit full walk. |
+| `llmwiki catalog verify` | Verify the authority stores listed below. Changes no store. |
+| `llmwiki catalog pages` / `catalog sources` | List one page using the continuation flags below. `--limit` defaults to, and is capped at, 1000. |
+
+After changing a source file's `source:` identity or name outside llmwiki, run `llmwiki catalog sync` (or compile) before ingesting that identity again. An ordinary ingest does not scan every existing source to discover external identity edits and can create a second file until the catalog is reconciled.
+
+Verification covers the page/source catalog, event and relation logs, vectors, workspace operation catalogs, and segmented compile state when held or present. It also checks their bound legacy backups where applicable. It does not verify retained batch-run reports or backups in separate directories.
+
+On an indexed project `catalog pages` orders custom-profile entity pages by catalog key. Continue each returned cursor channel with its matching flag:
+
+| Returned field | Continuation flag |
+|---|---|
+| `cursor` (pages or sources) | `--cursor` |
+| `profile.cursor` (custom-profile entity pages) | `--profile-cursor` |
+| `profile.problemCursor` (custom-profile problems) | `--problem-cursor` |
+
+For example, pass the `profile.cursor` token to `llmwiki catalog pages --profile-cursor <token> --json`. Cursors are opaque; pass back only a cursor returned for the listing you are continuing, using the matching flag. Typed profile cursors are bound to their typed catalog.
+
+### Maintenance
+
+| Command | What it does |
+|---|---|
+| `llmwiki catalog gc` | Preview a collection of unreferenced segments (read-only). `--out <file>` saves the plan; `--apply <file> --readers-offline` applies it from a fresh process. |
+| `llmwiki catalog pin <label>` / `unpin <label>` / `pins` | Keep, release or list pinned manifests so a collection retains their segments. |
+| `llmwiki catalog backup <dir>` | Back up the indexed authority set into a new directory outside the project. |
+| `llmwiki catalog restore <dir> --readers-offline` | Replace the current indexed authority set with a backup's, at the same project root only. |
+| `llmwiki catalog runs --out <file>` | Preview finished batch-compile runs and save a retirement plan; `catalog runs --retire <file> --readers-offline` deletes the selected runs and their reports from a saved, still-current plan. Save needed reports first. |
+
+The page and source catalog and the vector index are derived from your files. The event log, the relation log, the operation catalogs and the compile state are not: on this layout the indexed store is their record and they cannot be rebuilt from Markdown, so back them up.
+
+<Warning>
+`catalog backup` is not a wiki backup. It covers the indexed authority stores, the head anchor and the legacy files bound to them. Derived batch-run stores and their reports are excluded, so this backup cannot recover reports deleted by run retirement. Markdown pages, sources, configuration and review custody are not included and are not restored; keep them consistent with the backup yourself. Take a fresh `catalog backup` before a restore if you may need the current state.
+</Warning>
+
+Before retiring a run, read `llmwiki compile --report <runId>` and save each JSON page you need outside the run store. Continue with `llmwiki compile --report <runId> --cursor <cursor>` until no cursor is returned. Retirement deletes those reports; creating a `catalog backup` does not preserve them.
+
+## Batch compile on an indexed project
+
+A project whose segmented compile state is ready compiles through a bounded, resumable batch run. Prepare the capability once:
+
+```bash
+llmwiki scale prepare --capability segmented-compile-state-1
+```
+
+A scale record that holds this capability is refused by llmwiki builds that do not support it.
+
+`llmwiki compile` then runs in batches and checkpoints as it goes, so an interrupted run resumes where it stopped. See [the compile flags](/cli/compile#batch-compile-on-an-indexed-project) for `--batch-size`, `--restart` and `--report`.

@@ -27,11 +27,9 @@
  * named deferment, not made neutral.
  */
 
-import { diskEffectiveProfileSources, loadProfileFrom, type EffectiveProfileSources } from "./load.js";
+import { diskEffectiveProfileSources, type EffectiveProfileSources } from "./load.js";
 import { collectEntityPagesFrom, collectEntitySummaryFrom } from "./collect.js";
 import type { EntityProblem } from "./collect.js";
-import { DEFAULT_PROFILE } from "./default.js";
-import { profileDigest } from "./digest.js";
 import { toEntityProblemView } from "./types.js";
 import { collectStandingRelationProblemsFrom } from "./relation-standing.js";
 import { diskEntityPageReads, type EntityPageReads } from "./lifecycle-read.js";
@@ -48,47 +46,19 @@ import { safeRealpath } from "../utils/path-confine.js";
 import { readRelationsFrom } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
-import { diskGraphStoreReads, GraphDirConfinementError, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { GraphDirConfinementError, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../relations/graph-reads.js";
 import { PrivateDirConfinementError } from "../utils/private-dir.js";
 import type { RelationRef } from "../relations/types.js";
 import { diskEventReadSources, readEventsFrom, type EventReadSources } from "../events/store-read.js";
 import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError, EventStoreFullError } from "../events/types.js";
 
-/**
- * Load the active profile and return it ONLY when it is a non-default profile;
- * return `undefined` for the built-in default so every additive read surface
- * can omit its `profile` key with one shared gate.
- *
- * The built-in is identified by `loadedFrom === null` (the loader sets null
- * ONLY for the no-file/default path) — never by `profileId === "default"`,
- * which a disk profile can no longer claim but which must not be the gate. The
- * digest comparison is defense-in-depth against a future loader change.
- *
- * Effective-profile loading routes through the active-product binding via the
- * universal {@link loadProfile}: with no binding this is byte-identical to the
- * legacy path, and a product-mode binding yields the product's knowledge profile
- * (always non-default, since its `loadedFrom` is a package member path, so it is
- * never mistaken for the built-in default).
- *
- * @param root - Absolute project root directory.
- * @returns The loaded non-default profile, or `undefined` for the built-in default.
- */
-export async function loadNonDefaultProfile(
-  root: string,
-): Promise<LoadedProfile | undefined> {
-  // `async` so that a throw while the disk sources are built REJECTS, as this function always did.
-  return loadNonDefaultProfileFrom(diskEffectiveProfileSources(root));
-}
-
-/** {@link loadNonDefaultProfile} over the profile sources: THE ONE BODY. One load, then the one gate. */
-export async function loadNonDefaultProfileFrom(
-  sources: EffectiveProfileSources,
-): Promise<LoadedProfile | undefined> {
-  const loaded = await loadProfileFrom(sources);
-  const isBuiltInDefault =
-    loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
-  return isBuiltInDefault ? undefined : loaded;
-}
+// The non-default profile loader lives in its own light module so the history
+// guard can use it without importing this module's lint machinery (which would
+// close an import cycle through the relation and event stores). Re-exported here
+// for every existing importer.
+import { loadNonDefaultProfileFrom } from "./non-default.js";
+export { loadNonDefaultProfile, loadNonDefaultProfileFrom } from "./non-default.js";
 
 /** A profile pre-resolved by a caller: a {@link LoadedProfile}, or `null` for the built-in default. */
 export type PreloadedProfile = LoadedProfile | null;
@@ -583,7 +553,7 @@ export interface ProfileSummarySources {
  * ({@link diskArtifactHealthSources}). In no package index.
  */
 export function diskProfileSummarySources(root: string): ProfileSummarySources {
-  const graph = diskGraphStoreReads(root);
+  const graph = diskRelationGraphReads(root);
   const health = diskArtifactHealthSources(root);
   return {
     profile: diskEffectiveProfileSources(root),

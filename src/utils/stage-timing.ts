@@ -20,6 +20,7 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { openFileNoFollow } from "./no-follow-open.js";
 import { performance } from "node:perf_hooks";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 
 /** The fixed set of stage names; the log never contains anything caller-supplied. */
 export type TimedStage =
@@ -38,6 +39,7 @@ const SINK_FLAGS = fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_C
 
 /** The configured log path, or null when timing is off (unset, blank, or relative). */
 function timingFile(): string | null {
+  if (compilerModelScope()) return null;
   const configured = process.env[TIMING_FILE_ENV]?.trim();
   return configured && path.isAbsolute(configured) ? configured : null;
 }

@@ -4,8 +4,8 @@
  * Owns the single responsibility of turning source files into
  * {@link ExtractionResult}s via the LLM: reading each source, sending it (with
  * the confined wiki index as dedup context) to the extraction model, and
- * fanning the batch out under a shared concurrency limit with first-failure
- * short-circuit. Expands the directly-changed batch to any unchanged sources
+ * fanning the batch out under a shared concurrency limit that stops at the
+ * first failure and drains what it admitted. Expands the directly-changed batch to any unchanged sources
  * whose concepts overlap newly-extracted slugs. No pages are written here — the
  * results feed the page-generation phase in the orchestration spine.
  */
@@ -29,6 +29,7 @@ import { verbose } from "../utils/output.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import pLimit from "p-limit";
 import { reusableExtraction } from "./extraction-snapshot.js";
+import { runLimitedUntilFailure } from "./limited-until-failure.js";
 import type {
   ExtractedConcept,
   SourceChange,
@@ -38,13 +39,13 @@ import type {
 /**
  * Extract a batch of sources in parallel under a shared concurrency limit.
  *
- * Promise.all preserves input order, so the result matches the old serial
- * order that mergeExtractions relies on when reconciling same-slug concepts.
- * On the first hard failure a shared `aborted` flag short-circuits every
- * not-yet-started source: pLimit keeps draining its queue after Promise.all
- * rejects, and without this guard those queued sources would still issue their
- * (now-pointless) LLM calls — wasted cost/quota exactly when the provider is
- * already failing. In-flight sources still finish; only the queue is skipped.
+ * Results keep input order, so they match the old serial order that
+ * mergeExtractions relies on when reconciling same-slug concepts. On the first
+ * hard failure no not-yet-started source makes its (now-pointless) LLM call,
+ * every source already in flight settles, and then the original error escapes
+ * ({@link runLimitedUntilFailure}), so the compile never unwinds past its lock
+ * while an extraction call is outstanding. An unusable extraction (`failed`)
+ * is a result, not a hard failure, and does not stop the batch.
  */
 async function extractSourcesLimited(
   access: CompileAccess,
@@ -52,16 +53,7 @@ async function extractSourcesLimited(
   limit: ReturnType<typeof pLimit>,
   reuse: ExtractionReuse,
 ): Promise<ExtractionResult[]> {
-  let aborted = false;
-  return Promise.all(files.map((file) => limit(async () => {
-    if (aborted) throw new Error(`extraction skipped for ${file}: a prior source failed`);
-    try {
-      return await extractForSource(access, file, reuse);
-    } catch (err) {
-      aborted = true;
-      throw err;
-    }
-  })));
+  return runLimitedUntilFailure(limit, files, (file) => extractForSource(access, file, reuse));
 }
 
 /**
@@ -121,7 +113,7 @@ export async function runExtractionPhases(
  * Phase 1: Extract concepts from a source without generating pages.
  * Returns extraction data for the generation phase.
  */
-async function extractForSource(
+export async function extractForSource(
   access: CompileAccess,
   sourceFile: string,
   reuse: ExtractionReuse,
@@ -164,6 +156,7 @@ async function extractConcepts(
 ): Promise<ExtractedConcept[] | undefined> {
   const system = buildExtractionPrompt(sourceContent, existingIndex);
   const rawOutput = await callClaude({
+    purpose: "compile.extract-concepts",
     system,
     messages: [{ role: "user", content: "Extract the key concepts from this source." }],
     tools: [CONCEPT_EXTRACTION_TOOL],

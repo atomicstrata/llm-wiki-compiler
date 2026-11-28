@@ -55,7 +55,7 @@ const SLUG_SEPARATOR = "-";
  * has nothing to do with — `[[a]]` would claim `a-b-c` — and the uniqueness
  * check cannot tell that apart from a real abbreviation.
  */
-const MIN_REPAIRABLE_SLUG_LENGTH = 3;
+export const MIN_REPAIRABLE_SLUG_LENGTH = 3;
 
 /**
  * Resolve a broken link slug to the single page it prefixes, or null when it
@@ -86,7 +86,7 @@ export function createRepairResolver(slugs: string[], pending: Set<string>): (ta
 }
 
 /** Split `target|alias` into its parts, preserving an alias that contains a pipe. */
-function splitWikilink(inner: string): { target: string; alias: string } {
+export function splitWikilink(inner: string): { target: string; alias: string } {
   const [rawTarget, ...aliasParts] = inner.split("|");
   const target = rawTarget.trim();
   const alias = aliasParts.length > 0 ? aliasParts.join("|").trim() : target;
@@ -94,7 +94,7 @@ function splitWikilink(inner: string): { target: string; alias: string } {
 }
 
 /** Rewrite every repairable link in a body; returns the body and a repair count. */
-function repairBody(
+export function repairBody(
   body: string,
   resolve: (targetSlug: string) => string | null,
 ): { body: string; repaired: number } {

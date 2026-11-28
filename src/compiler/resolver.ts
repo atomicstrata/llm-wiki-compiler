@@ -73,7 +73,7 @@ export async function listLinkableTitlesFrom(reads: LegacyLocalReads): Promise<L
  * Pure, so a title index built from a store that is not a directory admits
  * exactly the pages this one does.
  */
-function linkableTitleOf(content: string): string | null {
+export function linkableTitleOf(content: string): string | null {
   if (!content) return null;
   const { meta } = parseFrontmatter(content);
   return meta.title && typeof meta.title === "string" && !meta.orphaned ? meta.title : null;
@@ -155,9 +155,10 @@ function cachedLiteralRegions(): (text: string) => (offset: number) => boolean {
  * Skips literal Markdown (fenced, indented and inline code, HTML blocks),
  * already-linked text, citations, non-word-boundary matches, and any place
  * the renderer would not read a link: Markdown link URLs and text, autolinks,
- * image alt text and reference definitions.
+ * image alt text and reference definitions. Applying `titles` in chunks, in
+ * order, is the same fold, so the batch compile streams them.
  */
-function addWikilinks(body: string, titles: LinkableTitle[], selfTitle: string): string {
+export function addWikilinks(body: string, titles: LinkableTitle[], selfTitle: string): string {
   let result = body;
   const literalRegions = cachedLiteralRegions();
   const selfLower = selfTitle.toLowerCase();
